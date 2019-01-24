@@ -10,9 +10,9 @@ tool is aligned to the UFS 3.0 spec.
 ## Build: ##
 ### Set CROSS\_COMPILE variable(e.g.): ###
 export CROSS\_COMPILE=/XXX/aarch64-linux-gnu- 
-### Build:### 
+### Build: ### 
 "make" 
-### Clean:###
+### Clean: ###
  "make clean"  
 
 ## Usage ##
