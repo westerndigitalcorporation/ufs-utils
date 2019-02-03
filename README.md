@@ -3,8 +3,9 @@
 ## Description: ##
 The tool uses the BSG infrastructure in linux kernel
 (applied to 4.20) in order to read/write device flags and
-attributes.Due to UFS BSG driver limitations, this version of the tool  
-cannot write/read descriptors. The tool is aligned to the UFS 3.0 spec.
+attributes. Due to UFS BSG driver limitations, this version of the tool  
+cannot write/read descriptors. 
+The tool is aligned to the UFS 3.0 spec.
 
 ## Build: ##
 ### Set CROSS\_COMPILE variable(e.g.): ###
