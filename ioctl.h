@@ -1,5 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0-only
-// Copyright (C) 2018 Western Digital Corporation
+/* SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (C) 2018 Western Digital Corporation
+ */
 
 #ifndef UAPI_SCSI_IOCTL_H_
 #define UAPI_SCSI_IOCTL_H_
