@@ -1,0 +1,736 @@
+From efdcb475a254ddf6f63777835e96baba74a2637f Mon Sep 17 00:00:00 2001
+From: Avri Altman <avri.altman@wdc.com>
+Date: Mon, 11 Mar 2019 13:15:12 +0200
+Subject: [PATCH] Add read descriptors functionality
+
+This patch is following a kernel ABI change -
+see commit 5c17f87abb1a (scsi: ufs-bsg: Allow reading descriptors).
+
+its commet message say: "...
+for both read and write descriptors query upiu, we are using the
+job's request_payload.  This in turn, is mapped back in user land to the
+applicable sg_io_v4 xferp: dout_xferp for write descriptor, and din_xferp
+for read descriptor.
+..."
+
+Change-Id: I0ee6dc1aefca5dc122584dce09e9f45c279469d6
+Signed-off-by: Avri Altman <avri.altman@wdc.com>
+---
+ options.c       |  15 +-
+ scsi_bsg_util.c |  10 ++
+ ufs.h           |   2 +-
+ ufs_cmds.c      | 493 ++++++++++++++++++++++++++++++++++++++++++++++++++------
+ 4 files changed, 457 insertions(+), 63 deletions(-)
+
+diff --git a/options.c b/options.c
+index c4e26c9..b537a7c 100644
+--- a/options.c
++++ b/options.c
+@@ -157,14 +157,8 @@ static int verify_arg_and_set_default(struct tool_options *options)
+ 		goto out;
+ 	}
+ 
+-	if (options->opr == INVALID) {
+-		if (options->config_type_inx != DESC_TYPE) {
+-			options->opr = READ;
+-		} else {
+-			print_error("The operation is missed");
+-			goto out;
+-		}
+-	}
++	if (options->opr == INVALID)
++		options->opr = READ;
+ 
+ 	if (options->opr == WRITE && !options->data) {
+ 		print_error("Data missed for the write operation");
+@@ -224,11 +218,6 @@ static int verify_read(struct tool_options *options)
+ 		goto out;
+ 	}
+ 
+-	if (options->config_type_inx == DESC_TYPE) {
+-		print_error("Read descriptor is unsupported");
+-		goto out;
+-	}
+-
+ 	return OK;
+ 
+ out:
+diff --git a/scsi_bsg_util.c b/scsi_bsg_util.c
+index e200009..bc722c6 100644
+--- a/scsi_bsg_util.c
++++ b/scsi_bsg_util.c
+@@ -90,6 +90,16 @@ int send_bsg_sg_io(int fd, struct ufs_bsg_request *request_buff,
+ 	io_hdr_v4.request_len = request_len;
+ 	io_hdr_v4.request = (__u64)request_buff;
+ 
++	if (request_len > sizeof(struct ufs_bsg_request)) {
++		/* write descriptor */
++		io_hdr_v4.dout_xferp = (uintptr_t)(__u64)(request_buff + 1);
++		io_hdr_v4.dout_xfer_len = request_len;
++	} else if (reply_len > sizeof(struct ufs_bsg_reply)) {
++		/* read descriptor */
++		io_hdr_v4.dout_xferp = (uintptr_t)(__u64)(reply_buff + 1);
++		io_hdr_v4.dout_xfer_len = reply_len;
++	}
++
+ 	WRITE_LOG("Start : %s cmd = %x req_len %d , res_len %d\n", __func__,
+ 		  request_buff->upiu_req.qr.idn, request_len, reply_len);
+ #ifdef DEBUG
+diff --git a/ufs.h b/ufs.h
+index 4c6952f..17442b3 100644
+--- a/ufs.h
++++ b/ufs.h
+@@ -104,7 +104,7 @@ enum ufs_desc_max_size {
+ 	 * of descriptor header.
+ 	 */
+ 	QUERY_DESC_STRING_MAX_SIZE		= 0xFE,
+-	QUERY_DESC_GEOMETRY_MAZ_SIZE		= 0x44,
++	QUERY_DESC_GEOMETRY_MAX_SIZE		= 0x48,
+ 	QUERY_DESC_POWER_MAX_SIZE		= 0x62,
+ 	QUERY_DESC_HEALTH_MAX_SIZE		= 0x37,
+ 	QUERY_DESC_RFU_MAX_SIZE			= 0x00,
+diff --git a/ufs_cmds.c b/ufs_cmds.c
+index e3d4f49..3d759ee 100644
+--- a/ufs_cmds.c
++++ b/ufs_cmds.c
+@@ -17,6 +17,9 @@
+ #include "options.h"
+ #include "scsi_bsg_util.h"
+ 
++#define STR_BUF_LEN 33
++#define BSG_REPLY_SZ (sizeof(struct ufs_bsg_reply))
++#define BSG_REQUEST_SZ (sizeof(struct ufs_bsg_request))
+ #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+ #define ATTR_RSRV() "Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID
+ enum field_width {
+@@ -331,12 +334,84 @@ static struct query_err_res query_err_status[] = {
+ 	{"General failure", 0xFF}
+ };
+ 
+-static int do_conf_desc(int fd, __u8 index, char *data_file);
+-static int do_string_desc(int fd, char *str_data, __u8 index);
++static int do_device_desc(int fd);
++static int do_unit_desc(int fd, __u8 lun);
++static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file);
++static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
++			  __u8 index);
+ static int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
+ 		       struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
+-		       __u8 opcode, __u8 idn, __u8 index, int len);
++		       __u8 opcode, __u8 idn, __u8 index, int req_buf_len,
++		       int res_buf_len);
+ static void query_response_error(__u8 opcode, __u8 idn);
++static int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
++			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
++			int desc_buf_len);
++static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
++			 struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
++			 int desc_buf_len);
++
++static void print_power_desc_icc(__u8 *desc_buf, int vccIndex)
++{
++	int i, offset = 0;
++	struct desc_field_offset *tmp;
++
++	if (vccIndex < 2 ||
++	    vccIndex > ARRAY_SIZE(device_power_desc_conf_field_name) - 1) {
++		print_error("Ilegal power desc index %d", vccIndex);
++		return;
++	}
++
++	tmp = &device_power_desc_conf_field_name[vccIndex];
++	offset = tmp->offset;
++	printf("\nPower Descriptor %s", tmp->name);
++	for (i = offset; i < offset + 32 ; i += 2) {
++		printf("\nLevel %2d value : 0x%x", (i - offset)/2,
++			be16toh((__u16)desc_buf[i]));
++	}
++	printf("\n");
++}
++
++void print_descriptors(char *desc_str, __u8 *desc_buf,
++		       struct desc_field_offset *desc_array)
++{
++	int i;
++	struct desc_field_offset *tmp;
++	char str_buf[STR_BUF_LEN];
++	int arr_size = ARRAY_SIZE(desc_array);
++
++	for (i = 0; i < arr_size; ++i) {
++		tmp = &desc_array[i];
++		if (tmp->width_in_bytes == BYTE) {
++			printf("%s [Byte offset 0x%x]: %s = 0x%x\n", desc_str,
++			       tmp->offset, tmp->name, desc_buf[tmp->offset]);
++		} else if (tmp->width_in_bytes == WORD) {
++			printf("%s [Byte offset 0x%x]: %s = 0x%x\n", desc_str,
++			       tmp->offset, tmp->name,
++			       be16toh(*(__u16 *)&desc_buf[tmp->offset]));
++		} else if (tmp->width_in_bytes == DWORD) {
++			printf("%s [Byte offset 0x%x]: %s = 0x%x\n", desc_str,
++			       tmp->offset, tmp->name,
++			       be32toh(*(__u32 *)&desc_buf[tmp->offset]));
++		} else if (tmp->width_in_bytes == DDWORD) {
++			printf("%s [Byte offset 0x%x]: %s = 0x%lx\n",
++			       desc_str, tmp->offset, tmp->name,
++			       be64toh(*(uint64_t *)&desc_buf[tmp->offset]));
++		} else if ((tmp->width_in_bytes > DDWORD) &&
++			    tmp->width_in_bytes < STR_BUF_LEN) {
++			memset(str_buf, 0, STR_BUF_LEN);
++			memcpy(str_buf, &desc_buf[tmp->offset],
++			       tmp->width_in_bytes);
++			printf("%s [Byte offset 0x%x]: %s = %s\n", desc_str,
++			       tmp->offset, tmp->name, str_buf);
++		} else {
++			printf("%s [Byte offset 0x%x]: %s Wrong Width = %d",
++			       desc_str, tmp->offset, tmp->name,
++			       tmp->width_in_bytes);
++		}
++	}
++	printf("\n");
++}
+ 
+ static char *access_type_string(__u8 current_att, __u8 config_type,
+ 				char *access_string)
+@@ -404,6 +479,7 @@ void desc_help(char *tool_name)
+ 		"\t\t\t8:\tPower\n"
+ 		"\t\t\t9:\tDevice Health\n"
+ 		"\t\t\t10..255: RFU\n");
++	printf("\n\t-r\t read operation (default) for readable descriptors\n");
+ 	printf("\n\t-w\t write operation , for writable descriptors\n");
+ 	printf("\t\t Set the input configuration file after -w opt\n");
+ 	printf("\t\t for Configuration descriptor\n");
+@@ -474,61 +550,308 @@ void flag_help(char *tool_name)
+ 		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
+ }
+ 
+-static int do_string_desc(int fd, char *str_data, __u8 index)
++static int do_device_desc(int fd)
++{
++	__u8 dev_desc[BSG_REPLY_SZ + QUERY_DESC_DEVICE_MAX_SIZE] = {0};
++	__u8 *dev_desc_buffer = &dev_desc[BSG_REPLY_SZ];
++	struct ufs_bsg_reply *pbsg_rsp = (struct ufs_bsg_reply *)dev_desc;
++	struct ufs_bsg_request bsg_req = {0};
++	int rc = 0;
++
++	rc = do_read_desc(fd, &bsg_req, pbsg_rsp,
++			  QUERY_DESC_IDN_DEVICE, 0,
++			  QUERY_DESC_DEVICE_MAX_SIZE);
++	if (rc) {
++		print_error("Could not read device descriptor , error %d", rc);
++		goto out;
++	}
++
++	print_descriptors("Device Descriptor", dev_desc_buffer,
++			  device_desc_field_name);
++
++out:
++	return rc;
++}
++
++static int do_unit_desc(int fd, __u8 lun)
++{
++	__u8 unit_desc[BSG_REPLY_SZ + QUERY_DESC_UNIT_MAX_SIZE] = {0};
++	__u8 *unit_desc_buffer = &unit_desc[BSG_REPLY_SZ];
++	struct ufs_bsg_reply *pbsg_rsp = (struct ufs_bsg_reply*)unit_desc;
++	struct ufs_bsg_request bsg_req = {0};
++	int ret = 0;
++
++	ret = do_read_desc(fd, &bsg_req, pbsg_rsp, QUERY_DESC_IDN_UNIT, lun,
++			   QUERY_DESC_UNIT_MAX_SIZE);
++	if (ret) {
++		print_error("Could not read unit descriptor error", ret);
++		goto out;
++	}
++
++	if (lun == 0xc4)
++		print_descriptors("RPMB LUN Descriptor", unit_desc_buffer,
++				  device_unit_rpmb_desc_field_name);
++	else
++		print_descriptors("LUN Descriptor", unit_desc_buffer,
++				  device_unit_desc_field_name);
++
++
++out:
++	return ret;
++}
++
++static int do_interconnect_desc(int fd)
++{
++	__u8 inter_desc[BSG_REPLY_SZ + QUERY_DESC_INTERCONNECT_MAX_SIZE] = {0};
++	__u8 *inter_desc_buffer = &inter_desc[BSG_REPLY_SZ];
++	struct ufs_bsg_reply *pbsg_rsp = (struct ufs_bsg_reply*)inter_desc;
++	struct ufs_bsg_request bsg_req = {0};
++	int ret = 0;
++
++	ret = do_read_desc(fd, &bsg_req, pbsg_rsp, QUERY_DESC_IDN_INTERCONNECT,
++			   0, QUERY_DESC_INTERCONNECT_MAX_SIZE);
++	if (ret) {
++		print_error("Could not read interconnect descriptor error %d",
++			    ret);
++		goto out;
++	}
++
++	print_descriptors("Interconnect Descriptor", inter_desc_buffer,
++			  device_interconnect_desc_conf_field_name);
++
++out:
++	return ret;
++}
++
++static int do_geo_desc(int fd)
++{
++	__u8 geo_desc[BSG_REPLY_SZ + QUERY_DESC_GEOMETRY_MAX_SIZE] = {0};
++	__u8 *geo_desc_buffer = &geo_desc[BSG_REPLY_SZ];
++	struct ufs_bsg_reply *pbsg_rsp = (struct ufs_bsg_reply*)geo_desc;
++	struct ufs_bsg_request bsg_req = {0};
++	int ret = 0;
++
++	ret = do_read_desc(fd, &bsg_req, pbsg_rsp, QUERY_DESC_IDN_GEOMETRY, 0,
++			   QUERY_DESC_GEOMETRY_MAX_SIZE);
++	if (ret) {
++		print_error("Could not read geometry descriptor , error %d",
++			    ret);
++		goto out;
++	}
++
++	print_descriptors("Geometry Descriptor", geo_desc_buffer,
++			  device_geo_desc_conf_field_name);
++
++out:
++	return ret;
++}
++
++static int do_power_desc(int fd)
++{
++	__u8 pow_desc[BSG_REPLY_SZ + QUERY_DESC_POWER_MAX_SIZE] = {0};
++	__u8 *pow_desc_buffer = &pow_desc[BSG_REPLY_SZ];
++	struct ufs_bsg_reply *pbsg_rsp = (struct ufs_bsg_reply*)pow_desc;
++	struct ufs_bsg_request bsg_req = {0};
++	int ret = 0;
++
++	ret = do_read_desc(fd, &bsg_req, pbsg_rsp,
++			  QUERY_DESC_IDN_POWER, 0, QUERY_DESC_POWER_MAX_SIZE);
++	if (ret) {
++		print_error("Could not read power descriptor , error %d", ret);
++		goto out;
++	}
++
++	printf("Power Descriptor[Byte offset 0x%x]: %s = 0x%x\n",
++	       device_power_desc_conf_field_name[0].offset,
++	       device_power_desc_conf_field_name[0].name, pow_desc_buffer[0]);
++
++	printf("Power Descriptor[Byte offset 0x%x]: %s = 0x%x\n",
++	       device_power_desc_conf_field_name[1].offset,
++	       device_power_desc_conf_field_name[1].name, pow_desc_buffer[1]);
++
++	print_power_desc_icc(pow_desc_buffer, 2);
++	print_power_desc_icc(pow_desc_buffer, 3);
++	print_power_desc_icc(pow_desc_buffer, 4);
++
++out:
++	return ret;
++}
++
++static int do_health_desc(int fd)
++{
++	__u8 desc_health[BSG_REPLY_SZ + QUERY_DESC_HEALTH_MAX_SIZE] = {0};
++	__u8 *desc_health_buffer =&desc_health[BSG_REPLY_SZ];
++	struct ufs_bsg_reply *pbsg_rsp = (struct ufs_bsg_reply*)desc_health;
++	struct ufs_bsg_request bsg_req = {0};
++	int ret = OK;
++
++	ret = do_read_desc(fd, &bsg_req, pbsg_rsp, QUERY_DESC_IDN_HEALTH, 0,
++			   QUERY_DESC_HEALTH_MAX_SIZE);
++	if (ret) {
++		print_error("Could not read device health descriptor error %d",
++			    ret);
++		goto out;
++	}
++
++	print_descriptors("Device Health Descriptor:", desc_health_buffer,
++			  device_health_desc_conf_field_name);
++
++out:
++	return ret;
++}
++
++static int get_oemid_index(int fd, __u8 *index)
++{
++	__u8 dev_desc[BSG_REPLY_SZ + QUERY_DESC_DEVICE_MAX_SIZE] = {0};
++	__u8 *dev_desc_buffer = &dev_desc[BSG_REPLY_SZ];
++	struct ufs_bsg_reply *pbsg_rsp = (struct ufs_bsg_reply *)dev_desc;
++	struct ufs_bsg_request bsg_req = {0};
++	int rc = 0;
++
++	rc = do_read_desc(fd, &bsg_req, pbsg_rsp,
++			  QUERY_DESC_IDN_DEVICE, 0,
++			  QUERY_DESC_DEVICE_MAX_SIZE);
++	if (rc) {
++		print_error("Could not read device descriptor , error %d", rc);
++		goto out;
++	}
++
++	*index = dev_desc_buffer[0x17];
++out:
++	return rc;
++}
++
++static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
++			  __u8 index)
+ {
+ 	int rc = OK;
+-	__u8 desc_str[(sizeof(struct ufs_bsg_request)) +
+-		      QUERY_DESC_STRING_MAX_SIZE] = {0};
+-	__u8 *desc_str_buffer = &(desc_str[(sizeof(struct ufs_bsg_request))]);
+-	struct ufs_bsg_request *bsg_req = (struct ufs_bsg_request *)&desc_str;
++	__u8 write_desc_str[BSG_REQUEST_SZ + QUERY_DESC_STRING_MAX_SIZE] = {0};
++	__u8 read_desc_str[BSG_REPLY_SZ + QUERY_DESC_STRING_MAX_SIZE] = {0};
++	__u8 *desc_str_buffer = NULL;
++	struct ufs_bsg_request bsg_req = {0};
+ 	struct ufs_bsg_reply bsg_rsp = {0};
+-	int len = strlen(str_data);
+ 
+-	strcpy((char *)desc_str_buffer, str_data);
+-	rc = do_query_rq(fd, bsg_req, &bsg_rsp,
+-			 UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
+-			 UPIU_QUERY_OPCODE_WRITE_DESC,
+-			 QUERY_DESC_IDN_STRING, index, len);
+-	if (rc == OK)
+-		printf("\n String Descriptor was written\n");
++	struct ufs_bsg_request *pbsg_req = NULL;
++	struct ufs_bsg_reply *pbsg_rsp = NULL;
++	int len, i;
+ 
++	if (opr == WRITE) {
++		__u8 oemid = 0;
++
++		rc = get_oemid_index(fd, &oemid);
++		if (rc)
++			goto out;
++		if (oemid != index) {
++			print_error("Writing string descriptor failed\n");
++			print_error("Illegal index %d OEM id %d\n",
++				    index, oemid);
++			rc = -EINVAL;
++			goto out;
++		}
++		desc_str_buffer =&write_desc_str[BSG_REQUEST_SZ];
++		len = strlen(str_data);
++		strcpy((char *)desc_str_buffer, str_data);
++		pbsg_req = (struct ufs_bsg_request *)write_desc_str;
++		rc = do_write_desc(fd, pbsg_req, &bsg_rsp,
++				   QUERY_DESC_IDN_STRING, index, len);
++		if (rc == OK) {
++			printf("\n String Descriptor was written \n");
++			goto out;
++		}
++	}
++
++	pbsg_rsp = (struct ufs_bsg_reply*)read_desc_str;
++	desc_str_buffer = &read_desc_str[BSG_REPLY_SZ];
++	rc = do_read_desc(fd, &bsg_req, pbsg_rsp, QUERY_DESC_IDN_STRING, index,
++			  QUERY_DESC_STRING_MAX_SIZE);
++	if (!rc) {
++		printf("\nString Desc:\n");
++		for (i = 0; i < pbsg_rsp->reply_payload_rcv_len; i++)
++			printf("0x%02x ", desc_str_buffer[i]);
++		printf("\n");
++	}
++
++out:
+ 	return rc;
+ }
+ 
+-static int do_conf_desc(int fd, __u8 index, char *data_file)
++static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
+ {
+ 	int rc = OK;
+-	__u8 conf_desc[(sizeof(struct ufs_bsg_request)) +
+-		       QUERY_DESC_CONFIGURAION_MAX_SIZE] = {0};
+-	__u8 *conf_desc_buffer =
+-			&(conf_desc[(sizeof(struct ufs_bsg_request))]);
+-	struct ufs_bsg_request *bsg_req = (struct ufs_bsg_request *)&conf_desc;
++	__u8 write_conf_desc[BSG_REQUEST_SZ +
++			     QUERY_DESC_CONFIGURAION_MAX_SIZE] = {0};
++	__u8 read_conf_desc[BSG_REPLY_SZ +
++			    QUERY_DESC_CONFIGURAION_MAX_SIZE] = {0};
++	struct ufs_bsg_request bsg_req = {0};
+ 	struct ufs_bsg_reply bsg_rsp = {0};
++	struct ufs_bsg_request *pbsg_req = NULL;
++	struct ufs_bsg_reply *pbsg_rsp = NULL;
++	__u8 *conf_desc_buffer;
++	int offset, i;
+ 	int data_fd;
++	char *output_file =  "config_desc_data";
+ 
+-	data_fd = open(data_file, O_RDONLY);
++	if (opt == WRITE) {
++		data_fd = open(data_file, O_RDONLY);
++		if (data_fd < 0) {
++			perror("can't open input file");
++			return ERROR;
++		}
++		pbsg_req = (struct ufs_bsg_request*)write_conf_desc;
++		conf_desc_buffer =&write_conf_desc[BSG_REQUEST_SZ];
++		if (read(data_fd, conf_desc_buffer,
++			 QUERY_DESC_CONFIGURAION_MAX_SIZE) !=
++		    QUERY_DESC_CONFIGURAION_MAX_SIZE) {
++			print_error("Could not read config data from  %s file",
++				    data_file);
++			close(data_fd);
++			return ERROR;
++		}
++
++		rc = do_write_desc(fd, pbsg_req, &bsg_rsp,
++				   QUERY_DESC_IDN_CONFIGURAION, index,
++				   QUERY_DESC_CONFIGURAION_MAX_SIZE);
++		if(!rc)
++			printf("Config Descriptor was written to device\n");
++		close(data_fd);
++		goto out;
++	}
++
++	pbsg_rsp = (struct ufs_bsg_reply *)read_conf_desc;
++	conf_desc_buffer = &read_conf_desc[BSG_REPLY_SZ];
++	rc = do_read_desc(fd, &bsg_req, pbsg_rsp, QUERY_DESC_IDN_CONFIGURAION,
++			  index, QUERY_DESC_CONFIGURAION_MAX_SIZE);
++	if (!rc)
++		print_descriptors("Config Device Descriptor:",
++				  conf_desc_buffer,
++				  device_config_desc_field_name);
++
++	for (i = 0 ; i < 8; i++) {
++		offset = (16 * (i+1));
++		printf("Config %d Unit Descriptor:\n", i);
++		print_descriptors("Config Descriptor:",
++				  conf_desc_buffer + offset,
++				  device_config_unit_desc_field_name);
++	}
++
++	data_fd = open(output_file, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+ 	if (data_fd < 0) {
+-		print_error("can't open input file");
++		perror("can't open output file");
+ 		return ERROR;
+ 	}
+ 
+-	if (read(data_fd, conf_desc_buffer, QUERY_DESC_CONFIGURAION_MAX_SIZE)
++	if (write(data_fd, conf_desc_buffer, QUERY_DESC_CONFIGURAION_MAX_SIZE)
+ 	    != QUERY_DESC_CONFIGURAION_MAX_SIZE) {
+-		print_error("Could not read config data from  %s file",
+-			    data_file);
++		print_error("Could not write config data into %s file",
++			    output_file);
++		close(data_fd);
+ 		rc = ERROR;
+ 		goto out;
+ 	}
+ 
+-	rc = do_query_rq(fd, bsg_req, &bsg_rsp,
+-			 UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
+-			 UPIU_QUERY_OPCODE_WRITE_DESC,
+-			 QUERY_DESC_IDN_CONFIGURAION, index,
+-			 QUERY_DESC_CONFIGURAION_MAX_SIZE);
+-	if (!rc)
+-		printf("Config Descriptor was written to device\n");
++	printf("Config Descriptor was written into %s file\n", output_file);
++
+ out:
+-	close(data_fd);
+ 	return rc;
+ }
+ 
+@@ -547,18 +870,67 @@ int do_desc(struct tool_options *opt)
+ 		return ERROR;
+ 	}
+ 
++	if (opt->opr == READ_ALL) {
++		if (do_device_desc(fd) || do_unit_desc(fd, 0) ||
++		    do_interconnect_desc(fd) || do_geo_desc(fd) ||
++		    do_power_desc(fd) || do_health_desc(fd))
++			rc = ERROR;
++		goto out;
++	}
++
+ 	switch (opt->idn) {
++	case QUERY_DESC_IDN_DEVICE:
++		if (opt->opr == WRITE) {
++			rc = -EINVAL;
++			goto out;
++		}
++		rc = do_device_desc(fd);
++		break;
+ 	case QUERY_DESC_IDN_CONFIGURAION:
+-		rc = do_conf_desc(fd, opt->index, (char *)opt->data);
++		rc = do_conf_desc(fd, opt->opr, opt->index, (char *)opt->data);
++		break;
++	case QUERY_DESC_IDN_UNIT:
++		if (opt->opr == WRITE) {
++			rc = -EINVAL;
++			goto out;
++		}
++		rc = do_unit_desc(fd, opt->index);
++		break;
++	case QUERY_DESC_IDN_GEOMETRY:
++		if (opt->opr == WRITE) {
++			rc = -EINVAL;
++			goto out;
++		}
++		rc = do_geo_desc(fd);
++		break;
++	case QUERY_DESC_IDN_POWER:
++		rc = do_power_desc(fd);
+ 		break;
+ 	case QUERY_DESC_IDN_STRING:
+-		rc = do_string_desc(fd, (char *)opt->data, opt->index);
++		rc = do_string_desc(fd, (char *)opt->data, opt->idn, opt->opr,
++				    opt->index);
++		break;
++	case QUERY_DESC_IDN_HEALTH:
++		if (opt->opr == WRITE) {
++			rc = -EINVAL;
++			goto out;
++		}
++		rc = do_health_desc(fd);
++		break;
++	case QUERY_DESC_IDN_INTERCONNECT:
++		if (opt->opr == WRITE) {
++			rc = -EINVAL;
++			goto out;
++		}
++		rc = do_interconnect_desc(fd);
+ 		break;
+ 	default:
+ 		print_error("Unsupported Descriptor type %d", opt->idn);
++		rc = -EINVAL;
+ 		break;
+ 	}
+ 
++out:
+ 	close(fd);
+ 	return rc;
+ }
+@@ -576,14 +948,15 @@ void print_attribute(struct attr_fields *attr, __u8 *attr_buffer)
+ 
+ static int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
+ 		       struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
+-		       __u8 opcode, __u8 idn, __u8 index, int len)
++		       __u8 opcode, __u8 idn, __u8 index,
++		       int req_buf_len ,int res_buf_len)
+ {
+ 	int rc = OK;
+ 	__u8 res_code;
+-	__u32 request_len = sizeof(struct ufs_bsg_request) + len;
+-	__u32 rsp_len = sizeof(struct ufs_bsg_reply) + len;
++	__u32 request_len = BSG_REQUEST_SZ + req_buf_len;
++	__u32 rsp_len = BSG_REPLY_SZ + res_buf_len;
+ 
+-	prepare_upiu(bsg_req, query_req_func, len, opcode, idn, index);
++	prepare_upiu(bsg_req, query_req_func, req_buf_len, opcode, idn, index);
+ 
+ 	rc = send_bsg_sg_io(fd, bsg_req, bsg_rsp, request_len, rsp_len);
+ 
+@@ -604,6 +977,26 @@ out:
+ 	return rc;
+ }
+ 
++static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
++			 struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
++			 int desc_buf_len)
++{
++	return do_query_rq(fd, bsg_req, bsg_rsp,
++			   UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
++			   UPIU_QUERY_OPCODE_WRITE_DESC, idn, index,
++			   desc_buf_len, 0);
++}
++
++static int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
++			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
++			int desc_buf_len)
++{
++	return do_query_rq(fd, bsg_req, bsg_rsp,
++			   UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
++			   UPIU_QUERY_OPCODE_READ_DESC, idn, index,
++			   0, desc_buf_len);
++}
++
+ int do_attributes(struct tool_options *opt)
+ {
+ 	int fd;
+@@ -640,7 +1033,7 @@ int do_attributes(struct tool_options *opt)
+ 			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
+ 					 UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
+ 					 UPIU_QUERY_OPCODE_READ_ATTR, att_idn,
+-					 0, 0);
++					 0, 0, 0);
+ 			if (rc == OK) {
+ 				attr_value =
+ 					be32toh(bsg_rsp.upiu_rsp.qr.value);
+@@ -651,7 +1044,7 @@ int do_attributes(struct tool_options *opt)
+ 					    tmp->name);
+ 			}
+ 
+-			memset(&bsg_rsp, 0, sizeof(struct ufs_bsg_reply));
++			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
+ 			att_idn++;
+ 		}
+ 	} else if (opt->opr == WRITE) {
+@@ -693,7 +1086,8 @@ int do_attributes(struct tool_options *opt)
+ 		bsg_req.upiu_req.qr.value = htobe32(attr_value);
+ 		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
+ 				 UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
+-				 UPIU_QUERY_OPCODE_WRITE_ATTR, opt->idn, 0, 0);
++				 UPIU_QUERY_OPCODE_WRITE_ATTR, opt->idn, 0, 0,
++				 0);
+ 		if (rc)
+ 			print_error("%s Attr write failed for attr %s",
+ 				    tmp->name);
+@@ -706,7 +1100,8 @@ int do_attributes(struct tool_options *opt)
+ 
+ 		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
+ 				 UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
+-				 UPIU_QUERY_OPCODE_READ_ATTR, opt->idn, 0, 0);
++				 UPIU_QUERY_OPCODE_READ_ATTR, opt->idn, 0, 0,
++				 0);
+ 		if (rc == OK) {
+ 			attr_value = be32toh(bsg_rsp.upiu_rsp.qr.value);
+ 			print_attribute(tmp, (__u8 *)&attr_value);
+@@ -756,7 +1151,7 @@ int do_flags(struct tool_options *opt)
+ 			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
+ 					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
+ 					UPIU_QUERY_OPCODE_READ_FLAG, flag_idn,
+-					0, 0);
++					0, 0, 0);
+ 			if (rc == OK) {
+ 				printf("%-26s := 0x%01x\n", tmp->name,
+ 					be32toh(bsg_rsp.upiu_rsp.qr.value) &
+@@ -767,7 +1162,7 @@ int do_flags(struct tool_options *opt)
+ 					    tmp->name);
+ 			}
+ 
+-			memset(&bsg_rsp, 0, sizeof(struct ufs_bsg_reply));
++			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
+ 			flag_idn++;
+ 		}
+ 		break;
+@@ -792,7 +1187,7 @@ int do_flags(struct tool_options *opt)
+ 				opcode = UPIU_QUERY_OPCODE_TOGGLE_FLAG;
+ 			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
+ 					UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
+-					opcode, opt->idn, 0, 0);
++					opcode, opt->idn, 0, 0, 0);
+ 			if (rc)
+ 				print_error("%s flag write failed for flag %s",
+ 					    tmp->name);
+@@ -806,7 +1201,7 @@ int do_flags(struct tool_options *opt)
+ 			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
+ 					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
+ 					UPIU_QUERY_OPCODE_READ_FLAG, opt->idn,
+-					0, 0);
++					0, 0, 0);
+ 			if (rc == OK)
+ 				printf("%-26s := 0x%01x\n", tmp->name,
+ 					be32toh(bsg_rsp.upiu_rsp.qr.value) &
+-- 
+2.7.4
+
