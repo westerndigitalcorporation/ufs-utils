@@ -193,8 +193,9 @@ static int verify_arg_and_set_default(struct tool_options *options)
 		print_error("Data missed for the write operation");
 		goto out;
 	}
-
-	if (options->opr != READ_ALL && options->idn == INVALID) {
+	if (options->config_type_inx != ERR_HIST_TYPE &&
+			options->opr != READ_ALL &&
+			options->idn == INVALID) {
 		print_error("The type idn is missed");
 		goto out;
 	}

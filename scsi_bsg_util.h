@@ -11,9 +11,20 @@
  */
 
 #define UFS_CDB_SIZE	16
-#define UPIU_TRANSACTION_UIC_CMD 0x1F
-/* uic commands are 4DW long, per UFSHCI V2.1 paragraph 5.6.1 */
-#define UIC_CMD_SIZE (sizeof(__u32) * 4)
+
+#define BUFFER_DATA_MODE 0x02
+#define BUFFER_FFU_MODE 0x0E
+#define BUFFER_EHS_MODE 0x1C
+
+#define SG_DXFER_NONE -1        /* e.g. a SCSI Test Unit Ready command */
+#define SG_DXFER_TO_DEV -2      /* e.g. a SCSI WRITE command */
+#define SG_DXFER_FROM_DEV -3    /* e.g. a SCSI READ command */
+
+#define SENSE_BUFF_LEN	(32)
+#define WRITE_BUF_CMDLEN 10
+#define READ_BUF_CMDLEN 10
+#define WRITE_BUFFER_CMD 0x3B
+#define READ_BUFFER_CMD 0x3c
 
 /**
  * struct utp_upiu_header - UPIU header structure
@@ -106,10 +117,12 @@ struct ufs_bsg_reply {
 #define BSG_REPLY_SZ (sizeof(struct ufs_bsg_reply))
 #define BSG_REQUEST_SZ (sizeof(struct ufs_bsg_request))
 
-int send_bsg_sg_io(int fd, struct ufs_bsg_request *request_buff,
+int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 		struct ufs_bsg_reply *reply_buff, __u32 request_len,
 		__u32 reply_len, __u8 *data_buf);
 void prepare_upiu(struct ufs_bsg_request *bsg_req, __u8 query_req_func,
-		  __u16 data_len, __u8 opcode, __u8 idn, __u8 index, __u8 sel);
+		__u16 data_len, __u8 opcode, __u8 idn, __u8 index, __u8 sel);
+int read_buffer(int fd, __u8 *buf, uint8_t mode, __u8 buf_id,
+		__u32 buf_offset, int byte_count);
 #endif /* BSG_UTIL_H_ */
 

@@ -1,21 +1,24 @@
-# UFS Tool ver 1.0 #
+# UFS Tool ver 1.1 #
 
 ## Description: ##
-The tool uses the BSG infrastructure in linux kernel
-(applied to 5.1 rc1) in order to read/write device flags,
-attributes & descriptors.
-Due to the issue in UFS BSG driver, the following patch
-have to be applied:
-https://lore.kernel.org/patchwork/patch/1076796/
-The tool is aligned to the UFS 3.0 spec.
+a) Read/Write device flags, attributes & descriptors by
+using the BSG infrastructure in linux kernel (applied to 5.1 rc1)   
+Due to the issues in UFS BSG driver, the following patch have to be
+applied:   
+   https://lore.kernel.org/patchwork/patch/1076796/   
+   https://patchwork.kernel.org/patch/11011891/   
+b) Error History   
+The tool is aligned to the UFS 3.0 spec.   
 
 ## Build: ##
 ### Set CROSS\_COMPILE variable(e.g.): ###
-export CROSS\_COMPILE=/XXX/aarch64-linux-gnu- 
-### Build:### 
-"make" 
-### Clean:###
- "make clean"  
+export CROSS\_COMPILE=/XXX/aarch64-linux-gnu-
+
+### Build: ###
+"make"
+
+### Clean: ###
+ "make clean"   
 
 ## Usage ##
 Copy the tool into a directory on the device (e.g.
@@ -23,19 +26,19 @@ Copy the tool into a directory on the device (e.g.
 Run the tool without arguments or with -h/--help
     options in order to list the supported features:   
 E.g. Run:  
-./ufs\-tool --help  
+./ufs-tool --help  
 Output:
-    ufs\-tool help|--help|-h Show the help.
+    ufs-tool help|--help|-h Show the help.
 
         ufs-tool -v
                 Show the version.
 
-        ufs-tool <desc | attr | fl> --help|-h
+        ufs-tool <desc | attr | fl | err_hist> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to
     get full information related to the feature, all options and the
-    examples. E.g.: getting help for ufs flags Run: ./ufs\-tool fl --help
+    examples. E.g.: getting help for ufs flags Run: ./ufs-tool fl --help
     Output: Flags command usage:
 
         ufs-tool fl [-t] <flag idn> [-a|-r|-o|-e] [-p] <device_path> 

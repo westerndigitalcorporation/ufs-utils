@@ -10,13 +10,14 @@ ifneq ($(CROSS_COMPILE),)
 	LDFLAGS += -static
 endif
 
-#CXXFLAGS = -DDEBUG -DDEBUG_BSG_DATA
+#CXXFLAGS = -DDEBUG
 
 objects = \
 	ufs.o \
 	ufs_cmds.o \
 	options.o \
 	scsi_bsg_util.o \
+	ufs_err_hist.o
 
 CHECKFLAGS = -Wall  -Wundef
 
