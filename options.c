@@ -9,6 +9,7 @@
 
 #include "options.h"
 #include "ufs.h"
+#include "unipro.h"
 
 static int verify_and_set_idn(struct tool_options *options);
 static int verify_read(struct tool_options *options);
@@ -19,13 +20,24 @@ static int verify_and_set_device_path(struct tool_options *options);
 static int verify_arg_and_set_default(struct tool_options *options);
 static int verify_and_set_index(struct tool_options *options);
 static int verify_and_set_selector(struct tool_options *options);
+static int verify_target(struct tool_options *options, int target);
 
 int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 {
 	int rc = -EINVAL;
 	int curr_opt = 0;
+	int opt = 0;
 
-	while (-1 != (curr_opt = getopt(opt_cnt, opt_arr, "t:p:w:i:s:rocea"))) {
+	static struct option long_opts[] = {
+		{"peer", no_argument, NULL, 'u'}, /* UFS device */
+		{"local", no_argument, NULL, 'l'}, /* UFS host*/
+		{NULL, 0, NULL, 0}
+	};
+	static char *short_opts = "t:p:w:i:s:rocea";
+
+	while (-1 !=
+	      (curr_opt = getopt_long(opt_cnt, opt_arr, short_opts,
+				      long_opts, &opt))) {
 		switch (curr_opt) {
 		case 'a':
 			rc = verify_read(options);
@@ -65,11 +77,16 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		case 's':
 			rc = verify_and_set_selector(options);
 			break;
+		case 'u':
+			rc = verify_target(options, DME_PEER);
+			break;
+		case 'l':
+			rc = verify_target(options, DME_LOCAL);
+			break;
 		default:
 			rc = -EINVAL;
 			break;
 		}
-
 		if (rc)
 			break;
 	}
@@ -78,6 +95,20 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		rc = verify_arg_and_set_default(options);
 
 	return rc;
+}
+
+static int verify_target(struct tool_options *options, int target)
+{
+	if (options->target != INVALID) {
+		print_error("duplicated operate target.");
+		goto out;
+	}
+
+	options->target = target;
+	return OK;
+
+out:
+	return ERROR;
 }
 
 static int verify_and_set_index(struct tool_options *options)
@@ -92,7 +123,11 @@ static int verify_and_set_index(struct tool_options *options)
 	/* In case atoi returned 0 . Check that is real 0 and not error
 	 * arguments . Also check that the value is in correct range
 	 */
-	index = atoi(optarg);
+	if (strstr(optarg, "0x") || strstr(optarg, "0X"))
+		index = (int)strtol(optarg, NULL, 0);
+	else
+		index = atoi(optarg);
+
 	if (!optarg || (index == 0 && strcmp(optarg, "0")) || index < 0) {
 		print_error("Invalid argument for index");
 		goto out;
@@ -167,6 +202,12 @@ static int verify_and_set_idn(struct tool_options *options)
 			goto out;
 		}
 		break;
+	case UIC_TYPE:
+		if (idn >= MAX_UNIPRO_IDN) {
+			print_error("Invalid UIC idn %d", idn);
+			goto out;
+		}
+		break;
 	default:
 		print_error("Invalid UFS configuration type %d", idn);
 		goto out;
@@ -204,6 +245,33 @@ static int verify_arg_and_set_default(struct tool_options *options)
 		options->index == INVALID) {
 		print_error("The index is missed");
 		goto out;
+	}
+
+	if (options->config_type_inx == UIC_TYPE) {
+		if (options->idn == INVALID) {
+			/*
+			 * As for the Unipro attributes access, should always
+			 * specify idn.
+			 */
+			print_error("idn of Unipro attributes is missed");
+			goto out;
+		}
+
+		if (options->opr == WRITE && options->target != DME_PEER &&
+		    options->target != DME_LOCAL) {
+			/*
+			 * As for Unipro attributes write, should
+			 * specify accessing target.
+			 */
+			print_error("accessing target is missed");
+			goto out;
+		}
+
+		if (options->index == INVALID &&
+		    (options->opr == READ || options->opr == WRITE)) {
+			print_error("ID of Unipro attributes is missed");
+			goto out;
+		}
 	}
 
 	if (options->index == INVALID)
@@ -302,7 +370,8 @@ static int verify_write(struct tool_options *options)
 		goto out;
 	}
 
-	if (options->config_type_inx == ATTR_TYPE) {
+	if (options->config_type_inx == ATTR_TYPE ||
+	    options->config_type_inx == UIC_TYPE) {
 		options->data = (__u32 *)calloc(1, sizeof(__u32));
 		if (!options->data) {
 			print_error("Memory Allocation problem");
