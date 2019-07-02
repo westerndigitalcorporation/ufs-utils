@@ -5,6 +5,7 @@ UFS Tool ver 1.0
 	attributes & descriptors.
 	Due to the issue in UFS BSG driver, the following patch have to be applied:
 	https://lore.kernel.org/patchwork/patch/1076796/
+	https://patchwork.kernel.org/patch/11011891/
 	The tool is aligned to the UFS 3.0 spec.
 
 2) Build
