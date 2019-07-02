@@ -23,7 +23,9 @@
 struct tool_options {
 	/* one of @ufs_cong_type */
 	int config_type_inx;
-	/* opt: -t, type - one of @flag_idn / @attr_idn / @desc_idn */
+	/* opt: -t, type - one of @flag_idn / @attr_idn / @desc_idn
+	 * or @unipro attribute idn
+	 */
 	int idn;
 	/* opt: -r/w/o/c/a, type of the operation read/write/toggle/clear */
 	int opr;
@@ -31,6 +33,8 @@ struct tool_options {
 	int selector;
 	/* data for writing */
 	void *data;
+	/* @DME_LOCAL or @DME_PEER */
+	int target;
 	int size;
 	char path[PATH_MAX];
 };
