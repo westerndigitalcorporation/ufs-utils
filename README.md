@@ -32,7 +32,7 @@ Output:
         ufs-tool -v
                 Show the version.
 
-        ufs-tool <desc | attr | fl> --help|-h
+        ufs-tool <desc | attr | fl | uic> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to
