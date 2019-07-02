@@ -17,6 +17,7 @@ objects = \
 	ufs_cmds.o \
 	options.o \
 	scsi_bsg_util.o \
+	unipro.o \
 
 CHECKFLAGS = -Wall  -Wundef
 
