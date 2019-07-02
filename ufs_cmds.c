@@ -16,6 +16,7 @@
 #include "ufs_cmds.h"
 #include "options.h"
 #include "scsi_bsg_util.h"
+#include "unipro.h"
 
 #define STR_BUF_LEN 33
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -1171,6 +1172,9 @@ void print_command_help(char *prgname, int config_type)
 		break;
 	case FLAG_TYPE:
 		flag_help(prgname);
+		break;
+	case UIC_TYPE:
+		unipro_help(prgname);
 		break;
 	default:
 		print_error("Unsupported cmd type");
