@@ -13,6 +13,7 @@
 #include "ufs_cmds.h"
 #include "options.h"
 #include "ufs.h"
+#include "unipro.h"
 
 #define UFS_BSG_UTIL_VERSION	"1.0"
 typedef int (*command_function)(struct tool_options *opt);
@@ -30,6 +31,7 @@ static struct tool_command commands[] = {
 	{ do_desc, "desc", DESC_TYPE},
 	{ do_attributes, "attr", ATTR_TYPE},
 	{ do_flags, "fl", FLAG_TYPE},
+	{ do_uic, "uic", UIC_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -50,7 +52,7 @@ static void help(char *np)
 {
 	char help_str[256] = {0};
 
-	strcat(help_str, "<desc | attr | fl");
+	strcat(help_str, "<desc | attr | fl | uic");
 	strcat(help_str, ">");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
@@ -64,6 +66,7 @@ static void initialized_options(struct tool_options *options)
 	memset(options, INVALID, sizeof(*options));
 	options->path[0] = '\0';
 	options->data = NULL;
+
 }
 
 static int parse_args(int argc, char **argv, command_function *func,

@@ -126,7 +126,8 @@ enum {
 enum ufs_cong_type {
 	DESC_TYPE = 0,
 	ATTR_TYPE,
-	FLAG_TYPE
+	FLAG_TYPE,
+	UIC_TYPE
 };
 
 /* UTP UPIU Transaction Codes Initiator to Target */
