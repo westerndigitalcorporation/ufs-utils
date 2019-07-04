@@ -106,7 +106,7 @@ static struct ufs_uic_attr_fields dme_qos_attrs[] = {
 
 /* M-TX/M-RX Capability Attributes */
 static struct ufs_uic_attr_fields mipi_mphy_attrs[] = {
-	// M-PHY TX Capability Attributes
+	/* M-PHY TX Capability Attributes */
 	{"TX_HSMODE_Capability", 0x0001, (GETTABLE)},
 	{"TX_HSGEAR_Capability", 0x0002, (GETTABLE)},
 	{"TX_PWMG0_Capability", 0x0003, (GETTABLE)},
@@ -126,7 +126,7 @@ static struct ufs_uic_attr_fields mipi_mphy_attrs[] = {
 	{"TX_Advanced_Hibern8Time_Capability", 0x0011, (GETTABLE)},
 	{"TX_HS_Equalizer_Setting_Capability", 0x0012, (GETTABLE)},
 
-	// M-PHY TX Configuration Attributes
+	/* M-PHY TX Configuration Attributes */
 	{"TX_MODE", 0x0021, (GETTABLE | SETTABLE)},
 	{"TX_HSRATE_Series", 0x0022, (GETTABLE | SETTABLE)},
 	{"TX_HSGEAR", 0x0023, (GETTABLE | SETTABLE)},
