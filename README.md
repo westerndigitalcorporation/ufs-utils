@@ -33,7 +33,7 @@ Output:
         ufs-tool -v
                 Show the version.
 
-        ufs-tool <desc | attr | fl | err_hist> --help|-h
+        ufs-tool <desc | attr | fl | err_hist | uic> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to
