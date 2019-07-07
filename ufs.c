@@ -13,8 +13,9 @@
 #include "ufs_cmds.h"
 #include "options.h"
 #include "ufs.h"
+#include "ufs_err_hist.h"
 
-#define UFS_BSG_UTIL_VERSION	"1.0"
+#define UFS_BSG_UTIL_VERSION	"1.1"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -30,6 +31,7 @@ static struct tool_command commands[] = {
 	{ do_desc, "desc", DESC_TYPE},
 	{ do_attributes, "attr", ATTR_TYPE},
 	{ do_flags, "fl", FLAG_TYPE},
+	{ do_err_hist, "err_hist", ERR_HIST_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -50,8 +52,7 @@ static void help(char *np)
 {
 	char help_str[256] = {0};
 
-	strcat(help_str, "<desc | attr | fl");
-	strcat(help_str, ">");
+	strcat(help_str, "<desc | attr | fl | err_hist>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
@@ -106,6 +107,29 @@ static int parse_args(int argc, char **argv, command_function *func,
 	rc = init_options(argc, argv, options);
 
 out:
+	return rc;
+}
+
+int write_file(const char *name, const void *buffer, int length)
+{
+	int fd;
+	int rc = 0;
+	size_t ret;
+
+	WRITE_LOG("writing file %s length=%d\n", name, length);
+	fd = open(name, O_RDWR | O_CREAT | O_TRUNC | O_SYNC, 0600);
+	if (fd == -1) {
+		WRITE_LOG("%s: failed in open errno=%d", __func__, errno);
+		return -ENOENT;
+	}
+
+	ret = write(fd, buffer, length);
+	if (length != ret) {
+		WRITE_LOG("%s: failed in write errno=%d", __func__, errno);
+		rc = -EIO;
+	}
+
+	close(fd);
 	return rc;
 }
 
