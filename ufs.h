@@ -11,6 +11,13 @@
 #define BLOCK_SIZE 512
 #define MAX_UFS_COMMAND_LEN 16
 
+/*
+ * Generally the max HW max chunk is 512KB,
+ * but in order to be in safe side tool using 256KB as max chunk size
+ * between user and kernel space
+*/
+#define MAX_IOCTL_BUF_SIZE (256L * 1024)
+
 /* Flag idn for Query Requests*/
 enum flag_idn {
 	QUERY_FLAG_IDN_RESERVED1		= 0x00,
@@ -127,7 +134,8 @@ enum ufs_cong_type {
 	DESC_TYPE = 0,
 	ATTR_TYPE,
 	FLAG_TYPE,
-	UIC_TYPE
+	UIC_TYPE,
+	ERR_HIST_TYPE
 };
 
 /* UTP UPIU Transaction Codes Initiator to Target */
@@ -139,6 +147,7 @@ enum {
 	UPIU_TRANSACTION_QUERY_REQ	= 0x16,
 };
 
+int write_file(const char *name, const void *buffer, int length);
 void print_error(const char *msg, ...);
 #ifdef DEBUG
 	#define WRITE_LOG(format, ...) fprintf(stderr, format"\n", __VA_ARGS__)

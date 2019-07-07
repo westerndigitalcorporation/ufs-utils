@@ -17,6 +17,7 @@
 #include "options.h"
 #include "scsi_bsg_util.h"
 #include "unipro.h"
+#include "ufs_err_hist.h"
 
 #define STR_BUF_LEN 33
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -395,7 +396,7 @@ void print_descriptors(char *desc_str, __u8 *desc_buf,
 		} else if (tmp->width_in_bytes == DDWORD) {
 			printf("%s [Byte offset 0x%x]: %s = 0x%lx\n",
 				desc_str, tmp->offset, tmp->name,
-				be64toh(*(uint64_t *)&desc_buf[tmp->offset]));
+				be64toh(*(__u64 *)&desc_buf[tmp->offset]));
 		} else if ((tmp->width_in_bytes > DDWORD) &&
 				tmp->width_in_bytes < STR_BUF_LEN) {
 			memset(str_buf, 0, STR_BUF_LEN);
@@ -906,7 +907,7 @@ static int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 	prepare_upiu(bsg_req, query_req_func, len, opcode, idn,
 		index, sel);
 
-	rc = send_bsg_sg_io(fd, bsg_req, bsg_rsp, req_buf_len, res_buf_len,
+	rc = send_bsg_scsi_trs(fd, bsg_req, bsg_rsp, req_buf_len, res_buf_len,
 			data_buf);
 
 	if (rc) {
@@ -1175,6 +1176,9 @@ void print_command_help(char *prgname, int config_type)
 		break;
 	case UIC_TYPE:
 		unipro_help(prgname);
+		break;
+	case ERR_HIST_TYPE:
+		err_hist_help(prgname);
 		break;
 	default:
 		print_error("Unsupported cmd type");
