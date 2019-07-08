@@ -198,9 +198,16 @@ int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 	int ret;
 	struct sg_io_v4 io_hdr_v4 = {0};
 
-	if (request_buff == NULL || reply_buff == NULL || data_buf == NULL) {
-		print_error("send_bsg_scsi_trs: wrong parameters");
+	if (request_buff == NULL || reply_buff == NULL) {
+		print_error("%s: wrong parameters", __func__);
 		return -EINVAL;
+	}
+
+	if (req_buf_len != 0 || reply_buf_len != 0) {
+		if (data_buf == NULL) {
+			print_error("%s: data_buf is NULL", __func__);
+			return -EINVAL;
+		}
 	}
 
 	io_hdr_v4.guard = 'Q';
