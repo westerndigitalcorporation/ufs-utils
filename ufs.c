@@ -16,7 +16,7 @@
 #include "ufs_err_hist.h"
 #include "unipro.h"
 
-#define UFS_BSG_UTIL_VERSION	"1.1"
+#define UFS_BSG_UTIL_VERSION	"1.2"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
