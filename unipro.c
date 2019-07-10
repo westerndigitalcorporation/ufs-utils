@@ -566,9 +566,9 @@ const char *help_str =
 	"	prefixed by 0x/0X\n"
 	"  Eg :\n"
 	"	1. Set local PA_TxTrailingClocks:\n"
-	"	%s uic -t 1 -w 0x44 -i 0x1564 --local -p /dev/bsg/ufs-bsg\n"
+	"	%s uic -t 1 -w 0x44 -i 0x1564 --local -p /dev/ufs-bsg\n"
 	"	2. Read peer and local PA_TxTrailingClocks:\n"
-	"	%s uic -t 1 -r -i 0x1564 -p /dev/bsg/ufs-bsg\n";
+	"	%s uic -t 1 -r -i 0x1564 -p /dev/ufs-bsg\n";
 void unipro_help(char *tool_name)
 {
 	printf(help_str, tool_name, tool_name, tool_name);
