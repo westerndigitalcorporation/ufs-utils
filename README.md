@@ -1,4 +1,4 @@
-# UFS Tool ver 1.2 #
+# UFS Tool ver 1.3 #
 
 ## Description: ##
 a) Read/Write device flags, attributes & descriptors by
@@ -9,6 +9,7 @@ applied:
    https://patchwork.kernel.org/patch/11011891/   
 b) Error History   
 c) Get/Set UNIPRO attributes   
+d) FFU - Field Firmware Update   
 The tool is aligned to the UFS 3.0 spec.   
 
 ## Build: ##

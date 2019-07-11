@@ -124,5 +124,7 @@ void prepare_upiu(struct ufs_bsg_request *bsg_req, __u8 query_req_func,
 		__u16 data_len, __u8 opcode, __u8 idn, __u8 index, __u8 sel);
 int read_buffer(int fd, __u8 *buf, uint8_t mode, __u8 buf_id,
 		__u32 buf_offset, int byte_count);
+int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
+		int byte_count);
 #endif /* BSG_UTIL_H_ */
 

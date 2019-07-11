@@ -15,8 +15,9 @@
 #include "ufs.h"
 #include "ufs_err_hist.h"
 #include "unipro.h"
+#include "ufs_ffu.h"
 
-#define UFS_BSG_UTIL_VERSION	"1.2"
+#define UFS_BSG_UTIL_VERSION	"1.3"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -34,6 +35,7 @@ static struct tool_command commands[] = {
 	{ do_flags, "fl", FLAG_TYPE},
 	{ do_err_hist, "err_hist", ERR_HIST_TYPE},
 	{ do_uic, "uic", UIC_TYPE},
+	{ do_ffu, "ffu", FFU_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -54,7 +56,7 @@ static void help(char *np)
 {
 	char help_str[256] = {0};
 
-	strcat(help_str, "<desc | attr | fl | err_hist | uic>");
+	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
