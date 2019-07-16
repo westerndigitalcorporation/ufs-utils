@@ -20,6 +20,9 @@
 #define TOGGLE_FLAG 4
 #define READ_ALL 5
 
+
+#define ALIGNMENT_CHUNK_SIZE 4096
+
 struct tool_options {
 	/* one of @ufs_cong_type */
 	int config_type_inx;

@@ -18,22 +18,11 @@
 #include "scsi_bsg_util.h"
 #include "ufs_err_hist.h"
 #include "unipro.h"
+#include "ufs_ffu.h"
 
 #define STR_BUF_LEN 33
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define ATTR_RSRV() "Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID
-enum field_width {
-	BYTE	= (1 << 0),
-	WORD	= (1 << 1),
-	DWORD	= (1 << 2),
-	DDWORD	= (1 << 3)
-};
-
-struct desc_field_offset {
-	char *name;
-	int offset;
-	enum field_width width_in_bytes;
-};
 
 struct desc_field_offset device_desc_field_name[] = {
 	{"bLength",			0x00, BYTE},
@@ -334,13 +323,12 @@ static struct query_err_res query_err_status[] = {
 	{"General failure", 0xFF}
 };
 
-static int do_device_desc(int fd);
 static int do_unit_desc(int fd, __u8 lun);
 static int do_power_desc(int fd);
 static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file);
 static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
 			__u8 index);
-static int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
+int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
 			__u8 opcode, __u8 idn, __u8 index, __u8 sel,
 			__u16 req_buf_len, __u16 res_buf_len, __u8 *data_buf);
@@ -549,7 +537,7 @@ void flag_help(char *tool_name)
 		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
 }
 
-static int do_device_desc(int fd)
+int do_device_desc(int fd, __u8 *desc_buff)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
@@ -563,10 +551,12 @@ static int do_device_desc(int fd)
 		print_error("Could not read device descriptor , error %d", rc);
 		goto out;
 	}
-
-	print_descriptors("Device Descriptor", data_buf,
-			device_desc_field_name,
-			ARRAY_SIZE(device_desc_field_name));
+	if(!desc_buff)
+		print_descriptors("Device Descriptor", data_buf,
+				device_desc_field_name,
+				ARRAY_SIZE(device_desc_field_name));
+	else
+		memcpy(desc_buff, data_buf, QUERY_DESC_DEVICE_MAX_SIZE);
 
 out:
 	return rc;
@@ -833,7 +823,7 @@ int do_desc(struct tool_options *opt)
 	}
 
 	if (opt->opr == READ_ALL) {
-		if (do_device_desc(fd) || do_unit_desc(fd, 0) ||
+		if (do_device_desc(fd, NULL) || do_unit_desc(fd, 0) ||
 			do_interconnect_desc(fd) || do_geo_desc(fd) ||
 			do_power_desc(fd) || do_health_desc(fd))
 			rc = ERROR;
@@ -842,7 +832,7 @@ int do_desc(struct tool_options *opt)
 
 	switch (opt->idn) {
 	case QUERY_DESC_IDN_DEVICE:
-		rc = do_device_desc(fd);
+		rc = do_device_desc(fd, NULL);
 		break;
 	case QUERY_DESC_IDN_CONFIGURAION:
 		if (opt->opr == READ)
@@ -892,7 +882,7 @@ void print_attribute(struct attr_fields *attr, __u8 *attr_buffer)
 			be32toh(*(__u32 *)attr_buffer));
 }
 
-static int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
+int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
 			__u8 opcode, __u8 idn, __u8 index, __u8 sel,
 			__u16 req_buf_len, __u16 res_buf_len, __u8 *data_buf)
@@ -1176,7 +1166,10 @@ void print_command_help(char *prgname, int config_type)
 		break;
 	case ERR_HIST_TYPE:
 		err_hist_help(prgname);
-	break;
+		break;
+	case FFU_TYPE:
+		ffu_help(prgname);
+		break;
 	case UIC_TYPE:
 		unipro_help(prgname);
 		break;

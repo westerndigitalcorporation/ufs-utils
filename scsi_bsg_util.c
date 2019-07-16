@@ -74,6 +74,31 @@ static int write_file_with_counter(const char *pattern, const void *buffer,
 #endif
 }
 
+int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
+		int byte_count)
+{
+	int ret;
+	unsigned char write_buf_cmd [WRITE_BUF_CMDLEN] = {
+		WRITE_BUFFER_CMD, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+	if (fd < 0 || buf == NULL || byte_count <= 0) {
+		perror("scsi write cmd: wrong parameters");
+		return -EINVAL;
+	}
+
+	write_buf_cmd[1] = mode;
+	write_buf_cmd[2] = buf_id;
+	put_unaligned_be24((uint32_t)buf_offset, write_buf_cmd + 3);
+	put_unaligned_be24(byte_count, write_buf_cmd + 6);
+	WRITE_LOG("Start : %s mode %d , buf_id %d", __func__, mode, buf_id);
+	ret = send_bsg_scsi_cmd(fd, write_buf_cmd, buf,
+			WRITE_BUF_CMDLEN, byte_count, SG_DXFER_TO_DEV);
+	if (ret < 0) {
+		print_error("SG_IO WRITE BUFFER data error ret %d", ret);
+	}
+	return ret;
+}
+
 int read_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id,
 	__u32 buf_offset, int byte_count)
 {
@@ -142,7 +167,7 @@ static int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
 	unsigned char sense_buffer[SENSE_BUFF_LEN] = {0};
 
 	if (buf == NULL || cdb == NULL) {
-		perror("send_bsg_scsi_cmd: wrong parameters");
+		print_error("send_bsg_scsi_cmd: wrong parameters");
 		return -EINVAL;
 	}
 
@@ -189,7 +214,7 @@ static int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
  * @data_buf: pointer to the data buffer
  *
  * The function using ufs bsg infrastructure in linux kernel (/dev/ufs-bsg)
- * in order to send Query Request command
+ * in order to send Query request command
  **/
 int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 		struct ufs_bsg_reply *reply_buff, __u32 req_buf_len,

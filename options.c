@@ -10,6 +10,7 @@
 #include "options.h"
 #include "ufs.h"
 #include "unipro.h"
+#include "ufs_ffu.h"
 
 static int verify_and_set_idn(struct tool_options *options);
 static int verify_read(struct tool_options *options);
@@ -21,6 +22,7 @@ static int verify_arg_and_set_default(struct tool_options *options);
 static int verify_and_set_index(struct tool_options *options);
 static int verify_and_set_selector(struct tool_options *options);
 static int verify_target(struct tool_options *options, int target);
+static int verify_and_set_ffu_chunk_size(struct tool_options *options);
 
 int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 {
@@ -75,7 +77,10 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 			rc = verify_and_set_index(options);
 			break;
 		case 's':
-			rc = verify_and_set_selector(options);
+			if (options->config_type_inx == FFU_TYPE)
+				rc = verify_and_set_ffu_chunk_size(options);
+			else
+				rc = verify_and_set_selector(options);
 			break;
 		case 'u':
 			rc = verify_target(options, DME_PEER);
@@ -136,6 +141,26 @@ static int verify_and_set_index(struct tool_options *options)
 	options->index = index;
 	return OK;
 
+out:
+	return ERROR;
+}
+
+static int verify_and_set_ffu_chunk_size(struct tool_options *options)
+{
+	int chunk_size_kb =  atoi(optarg);
+
+	if (!chunk_size_kb) {
+		print_error("Invalid chunk_size %d ", chunk_size_kb);
+		goto out;
+	}
+	options->size = chunk_size_kb * 1024;
+	if ((options->size > MAX_IOCTL_BUF_SIZE) ||
+		(options->size % ALIGNMENT_CHUNK_SIZE)) {
+		print_error("The chunk should be multiple value of 4k, between 4k and %dk",
+				MAX_IOCTL_BUF_SIZE / 1024);
+		goto out;
+	}
+	return OK;
 out:
 	return ERROR;
 }
@@ -205,6 +230,12 @@ static int verify_and_set_idn(struct tool_options *options)
 	case UIC_TYPE:
 		if (idn >= MAX_UNIPRO_IDN) {
 			print_error("Invalid UIC idn %d", idn);
+			goto out;
+		}
+		break;
+	case FFU_TYPE:
+		if (idn >= UFS_FFU_MAX) {
+			print_error("Invalid ffu cmd %d", idn);
 			goto out;
 		}
 		break;
@@ -280,6 +311,19 @@ static int verify_arg_and_set_default(struct tool_options *options)
 
 	if (options->selector == INVALID)
 		options->selector = 0;
+
+	if (options->config_type_inx == FFU_TYPE) {
+		if (options->size == INVALID)
+			options->size = MAX_IOCTL_BUF_SIZE;
+		if (options->idn == INVALID)
+			/*Default operation*/
+			options->idn = UFS_FFU;
+		if ((options->idn != UFS_CHECK_FFU_STATUS) &&
+				(options->data == NULL)) {
+			print_error("The FW file name is missing");
+			goto out;
+		}
+	}
 
 	return OK;
 
@@ -385,6 +429,20 @@ static int verify_write(struct tool_options *options)
 			print_error("Wrong data");
 			goto out;
 		}
+	}
+	if (options->config_type_inx == FFU_TYPE) {
+		int len = strlen(optarg) + 1;
+
+		if (len >= PATH_MAX) {
+			print_error("Input file path is too long");
+			goto out;
+		}
+		options->data = (char *)calloc(1, len);
+		if (options->data == NULL) {
+			print_error("Memory Allocation problem");
+			goto out;
+		} else
+			strcpy(options->data, optarg);
 	}
 
 	return OK;
