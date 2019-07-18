@@ -288,7 +288,7 @@ static int ufshcd_dme_get_attr(int fd, __u32 attr_sel, __u8 peer)
 
 	rt = send_bsg_scsi_trs(fd, &bsg_req, &bsg_rsp, 0, 0, 0);
 	if (rt) {
-		print_error("%s: bsg request failed.\n", __func__);
+		print_error("%s: bsg request failed", __func__);
 		rt = ERROR;
 		goto out;
 	}
@@ -302,12 +302,12 @@ static int ufshcd_dme_get_attr(int fd, __u32 attr_sel, __u8 peer)
 			sizeof(struct uic_cmd_result_code);
 
 		if (res_code < (max_code - 1)) {
-			print_error("%s: attr-id 0x%x %s.\n",
+			print_error("%s: attr-id 0x%x %s",
 				    __func__,
 				    UIC_GET_ATTR_ID(attr_sel),
 				    resultcode[res_code].def);
 		} else {
-			print_error("%s: ID 0x%x, unknown error code %d.\n",
+			print_error("%s: ID 0x%x, unknown error code %d",
 				    __func__, UIC_GET_ATTR_ID(attr_sel),
 				    res_code);
 		}
@@ -342,7 +342,7 @@ static int ufshcd_dme_set_attr(int fd, __u32 attr_sel, __u8 attr_set,
 
 	rt = send_bsg_scsi_trs(fd, &bsg_req, &bsg_rsp, 0, 0, 0);
 	if (rt) {
-		print_error("%s: bsg request failed.\n", __func__);
+		print_error("%s: bsg request failed", __func__);
 		rt = ERROR;
 		goto out;
 	}
@@ -355,12 +355,12 @@ static int ufshcd_dme_set_attr(int fd, __u32 attr_sel, __u8 attr_set,
 			sizeof(struct uic_cmd_result_code);
 
 		if (res_code < (max_code - 1)) {
-			print_error("%s: ID 0x%x %s.\n",
+			print_error("%s: ID 0x%x %s",
 				    __func__,
 				    UIC_GET_ATTR_ID(attr_sel),
 				    resultcode[res_code].def);
 		} else {
-			print_error("%s: ID 0x%x, unkonw error code %d.\n",
+			print_error("%s: ID 0x%x, unkonw error code %d",
 				    __func__,
 				    UIC_GET_ATTR_ID(attr_sel),
 				    res_code);
@@ -420,7 +420,7 @@ static int unipro_read(int fd, int idn, int id, __u8 all)
 					display(p[index].id, p[index].name,
 						mib_val_local, mib_val_peer);
 				} else {
-					print_error("Read %s ID 0x%x failed\n",
+					print_error("Read %s ID 0x%x Failed",
 						    ((mib_val_local == ERROR) &&
 						     (mib_val_peer == ERROR)) ?
 						    ("local&peer") :
@@ -450,7 +450,7 @@ static int unipro_read(int fd, int idn, int id, __u8 all)
 				display(p[index].id, p[index].name,
 					mib_val_local, mib_val_peer);
 			} else {
-				print_error("Read %s ID 0x%x failed..\n",
+				print_error("Read %s ID 0x%x failed",
 					    ((mib_val_local == ERROR) &&
 					     (mib_val_peer == ERROR)) ?
 					    ("local&peer") :
@@ -461,7 +461,7 @@ static int unipro_read(int fd, int idn, int id, __u8 all)
 			}
 
 		} else {
-			print_error("Unsupport ID 0x%02x in %s.\n",
+			print_error("Unsupport ID 0x%02x in %s",
 				    id, uic_attrs_group[idn].name);
 			ret  = ERROR;
 		}
@@ -490,12 +490,12 @@ static int unipro_write(int fd, int idn, int id, int mib_val,
 			       (target == DME_PEER ? "PEER" : "LOCAL"),
 			       p[index].id, p[index].name, mib_val);
 		} else {
-			print_error("un-settable id 0x%02x in %s.\n", id,
+			print_error("un-settable id 0x%02x in %s", id,
 				    uic_attrs_group[idn].name);
 			ret = ERROR;
 		}
 	} else {
-		print_error("unsupport id 0x%02x in %s.\n", id,
+		print_error("unsupport id 0x%02x in %s", id,
 			    uic_attrs_group[idn].name);
 		ret = ERROR;
 	}
