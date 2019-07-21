@@ -1120,7 +1120,7 @@ int do_flags(struct tool_options *opt)
 					opcode, opt->idn, opt->index,
 					opt->selector, 0, 0, 0);
 			if (rc)
-				print_error("%s flag write failed for flag %s",
+				print_error("The operation for flag %s failed",
 					tmp->name);
 		}
 	break;
@@ -1138,8 +1138,7 @@ int do_flags(struct tool_options *opt)
 					be32toh(bsg_rsp.upiu_rsp.qr.value) &
 					0xff);
 			else
-				print_error("%s flag read failed for flag %s",
-					tmp->name);
+				print_error("Read for flag %s failed", tmp->name);
 		}
 	break;
 	default:
