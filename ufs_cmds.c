@@ -96,7 +96,7 @@ struct desc_field_offset device_geo_desc_conf_field_name[] = {
 	{"bDescriptorType ",			0x01, BYTE},
 	{"bMediaTechnology",			0x02, BYTE},
 	{"qTotalRawDeviceCapacity",		0x04, DDWORD},
-	{"bMaxNumberLU",			0x0C, DWORD},
+	{"bMaxNumberLU",			0x0C, BYTE},
 	{"dSegmentSize",			0x0D, DWORD},
 	{"bAllocationUnitSize",			0x11, BYTE},
 	{"bMinAddrBlockSize",			0x12, BYTE},
@@ -172,7 +172,9 @@ struct desc_field_offset device_unit_rpmb_desc_field_name[] = {
 	{"bRPMBRegion2Size",		0x15, BYTE},
 	{"bRPMBRegion3Size",		0x16, BYTE},
 	{"bProvisioningType",		0x17, BYTE},
-	{"qPhyMemResourceCount",	0x18, DDWORD}
+	{"qPhyMemResourceCount",	0x18, DDWORD},
+	{"wContextCapabilities",	0x20, WORD},
+	{"wContextCapabilities",	0x22, BYTE},
 };
 
 struct desc_field_offset device_power_desc_conf_field_name[] = {
@@ -180,7 +182,7 @@ struct desc_field_offset device_power_desc_conf_field_name[] = {
 	{"bDescriptorType",		0x01, BYTE},
 	{"wActiveICCLevelsVCC",		0x02, 32},
 	{"wActiveICCLevelsVCCQ",	0x22, 32},
-	{"wActiveICCLevelsVCCQ2",	0x42, 32},
+	{"wActiveICCLevelsVCCQ2",	0x42, 32}
 };
 
 struct desc_field_offset device_health_desc_conf_field_name[] = {
