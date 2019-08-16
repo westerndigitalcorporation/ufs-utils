@@ -1,4 +1,4 @@
-# UFS Tool ver 1.3 #
+# UFS Tool ver 1.4 #
 
 ## Description: ##
 a) Read/Write device flags, attributes & descriptors by
@@ -10,6 +10,7 @@ applied:
 b) Error History   
 c) Get/Set UNIPRO attributes   
 d) FFU - Field Firmware Update   
+e) UFS RPMB unit read/write    
 The tool is aligned to the UFS 3.0 spec.   
 
 ## Build: ##
@@ -35,7 +36,7 @@ Output:
         ufs-tool -v
                 Show the version.
 
-        ufs-tool <desc | attr | fl | err_hist | uic | ffu> --help|-h
+        ufs-tool <desc | attr | fl | err_hist | uic | ffu | rpmb> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to
