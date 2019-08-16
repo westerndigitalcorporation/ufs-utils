@@ -23,9 +23,14 @@
 #define SENSE_BUFF_LEN	(32)
 #define WRITE_BUF_CMDLEN 10
 #define READ_BUF_CMDLEN 10
+#define SEC_PROTOCOL_CMDLEN 12
 #define WRITE_BUFFER_CMD 0x3B
 #define READ_BUFFER_CMD 0x3c
 
+#define SECURITY_PROTOCOL_OUT 0xB5
+#define SECURITY_PROTOCOL_IN  0xA2
+#define UFS_SECURITY_PROTOCOL 0xEC
+#define UFS_SECURITY_PROTOCOL_SPECIFIC 0x0001
 /**
  * struct utp_upiu_header - UPIU header structure
  * @dword_0: UPIU header DW-0
@@ -126,5 +131,7 @@ int read_buffer(int fd, __u8 *buf, uint8_t mode, __u8 buf_id,
 		__u32 buf_offset, int byte_count);
 int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
 		int byte_count);
+int submit_sec_cdb(int fd, __u16 spsp, __u8 secp, char *buf,
+		int len, _Bool send);
 #endif /* BSG_UTIL_H_ */
 
