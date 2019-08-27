@@ -831,9 +831,9 @@ int do_rpmb(struct tool_options *opt)
 
 static char *help_str =
 	"\nrpmb command usage:\n"
-	"  %s rpmb [status][read-counter][read-data][write-data][write-key]\n"
-	"	[-k </path/to/key][-f output/input file>][-c <block count>]\n"
-	"	[-a <addr>][-p bsg]\n\n"
+	"  %s rpmb [--status][--read_counter][--read_data][--write_data]\n"
+	"	[--write_key] [-k </path/to/key][-f output/input file>]\n"
+	"	[-c <block count>][-a <addr>][-r region][-p bsg]\n\n"
 	"	--status       - Show RPMB LUN status\n"
 	"	--read_data    - Read [-c block count] data from RPMB LUN, and\n"
 	"		         then save to [-f <output file>]\n"
