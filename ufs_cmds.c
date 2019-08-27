@@ -19,6 +19,7 @@
 #include "ufs_err_hist.h"
 #include "unipro.h"
 #include "ufs_ffu.h"
+#include "rpmb.h"
 
 #define STR_BUF_LEN 33
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -1173,6 +1174,9 @@ void print_command_help(char *prgname, int config_type)
 		break;
 	case UIC_TYPE:
 		unipro_help(prgname);
+		break;
+	case RPMB_TYPE:
+		rpmb_help(prgname);
 		break;
 	default:
 		print_error("Unsupported cmd type");

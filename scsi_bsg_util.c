@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "ioctl.h"
 #include "ufs.h"
@@ -53,11 +54,25 @@ static const char *sense_key_string(__u8 key)
 	return NULL;
 }
 
+static inline void put_unaligned_be16(__u16 val, void *p)
+{
+	((__u8 *)p)[0] = (val >> 8) & 0xff;
+	((__u8 *)p)[1] = val & 0xff;
+}
+
 static inline void put_unaligned_be24(__u32 val, void *p)
 {
 	((__u8 *)p)[0] = (val >> 16) & 0xff;
 	((__u8 *)p)[1] = (val >> 8) & 0xff;
 	((__u8 *)p)[2] = val & 0xff;
+}
+
+static inline void put_unaligned_be32(__u32 val, void *p)
+{
+	((__u8 *)p)[0] = (val >> 24) & 0xff;
+	((__u8 *)p)[1] = (val >> 16) & 0xff;
+	((__u8 *)p)[2] = (val >> 8) & 0xff;
+	((__u8 *)p)[3] = val & 0xff;
 }
 
 static int write_file_with_counter(const char *pattern, const void *buffer,
@@ -127,6 +142,26 @@ int read_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id,
 	return ret;
 }
 
+int ufs_request_sense(int unit_fd, __u8 *buf, int bytes)
+{
+	int ret;
+	unsigned char cmd[] = {
+		REQUEST_SENSE, 0, 0, 0, 18, 0
+	};
+
+	if ((unit_fd < 0) || (!buf) || (bytes <= 0) || (bytes > 18)) {
+		print_error("ufs_request_sense() wrong parameters");
+		return -EINVAL;
+	}
+
+	ret = send_bsg_scsi_cmd(unit_fd, cmd, buf, 6, bytes, SG_DXFER_FROM_DEV);
+	if (ret < 0) {
+		print_error("SG_IO REQUEST SENSE error ret %d", ret);
+	}
+
+	return ret;
+}
+
 void prepare_upiu(struct ufs_bsg_request *bsg_req,
 		__u8 query_req_func, __u16 data_len,
 		__u8 opcode, __u8 idn, __u8 index, __u8 sel)
@@ -166,7 +201,7 @@ static int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
 	struct sg_io_v4 io_hdr_v4 = {0};
 	unsigned char sense_buffer[SENSE_BUFF_LEN] = {0};
 
-	if (buf == NULL || cdb == NULL) {
+	if ((byte_cnt && buf == NULL) || cdb == NULL) {
 		print_error("send_bsg_scsi_cmd: wrong parameters");
 		return -EINVAL;
 	}
@@ -278,5 +313,65 @@ int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 
 	WRITE_LOG("%s res_len %d\n", __func__,
 		reply_buff->reply_payload_rcv_len);
+	return ret;
+}
+
+/*
+ * submit_sec_cdb - Used to send SECURITY PROTOCOL OUT/IN CDB
+ * @fd: bsg driver file descriptor
+ * @spsp: SECURITY PROTOCOL SPECIFIC in CDB
+ * @secp: SECURITY PROTOCOL in CDB
+ * @buf: pointer to the SCSI cmd data buffer
+ * @len: SCSI data length
+ * @send: The cmd direction, True or 1 for send, False or 0 for read
+ */
+int submit_sec_cdb(int fd, __u16 spsp, __u8 secp, char *buf,
+		int len, _Bool send)
+{
+	int ret;
+	unsigned char cdb[SEC_PROTOCOL_CMDLEN];
+
+	memset(cdb, 0, SEC_PROTOCOL_CMDLEN);
+
+	cdb[0] = send ? SECURITY_PROTOCOL_OUT : SECURITY_PROTOCOL_IN;
+	cdb[1] = secp;
+	put_unaligned_be16(spsp, cdb + 2);
+	put_unaligned_be32(len, cdb + 6);
+
+#ifdef DEBUG
+	int i;
+
+	for (i = 0; i < SEC_PROTOCOL_CMDLEN; i++)
+		printf("cdb[%d] = 0x%x\n", i, cdb[i]);
+
+	if (send) {
+		printf("\nSending:\n");
+		for (i = 0; i < len; i++) {
+			printf("0x%02x ", buf[i]);
+			if (!((i + 1) % 16))
+				printf("\n");
+		}
+	}
+#endif
+	ret = send_bsg_scsi_cmd(fd, cdb, buf,
+			SEC_PROTOCOL_CMDLEN, len,
+			(send ? SG_DXFER_TO_DEV : SG_DXFER_FROM_DEV));
+#ifdef DEBUG
+	if (!send) {
+		printf("\nReceived:\n");
+		for (i = 0; i < len; i++) {
+			printf("0x%02x ", buf[i]);
+			if (!((i + 1) % 16))
+				printf("\n");
+		}
+	}
+#endif
+	if (ret < 0) {
+		print_error("SG_IO %s error ret %d",
+			    (send ? "SECURITY_PROTOCOL_OUT" :
+			    "SECURITY_PROTOCOL_IN"),
+			    ret);
+	}
+
 	return ret;
 }

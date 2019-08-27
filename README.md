@@ -1,4 +1,4 @@
-# UFS Tool ver 1.3 #
+# UFS Tool ver 1.4 #
 
 ## Description: ##
 a) Read/Write device flags, attributes & descriptors by
@@ -10,6 +10,7 @@ applied:
 b) Error History   
 c) Get/Set UNIPRO attributes   
 d) FFU - Field Firmware Update   
+e) UFS RPMB unit read/write    
 The tool is aligned to the UFS 3.0 spec.   
 
 ## Build: ##
@@ -35,7 +36,7 @@ Output:
         ufs-tool -v
                 Show the version.
 
-        ufs-tool <desc | attr | fl | err_hist | uic | ffu> --help|-h
+        ufs-tool <desc | attr | fl | err_hist | uic | ffu | rpmb> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to
@@ -76,8 +77,8 @@ Output:
                 ufs-tool fl -t 4 -p /dev/block/ufs-bsg
 
 ## Authors ##
-signed-off-by:Arthur Simchaev (arthur.simchaev@wdc.com)
-signed-off-by:Avri Altman (avri.altman@wdc.com)
+signed-off-by:Arthur Simchaev (arthur.simchaev@wdc.com)    
+signed-off-by:Avri Altman (avri.altman@wdc.com)    
 
 ## License ##
 This project is licensed under the GPL-2.0-only  
