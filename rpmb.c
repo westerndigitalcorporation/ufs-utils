@@ -24,7 +24,6 @@
 #include "rpmb.h"
 #include "hmac_sha/hmac_sha2.h"
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define DEBUG 1
 static int read_rpmb_status(struct rpmb_opt *opt);
 static int rpmb_read_counter(struct rpmb_opt *opt);

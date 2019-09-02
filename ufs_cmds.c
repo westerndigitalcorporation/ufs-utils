@@ -22,7 +22,6 @@
 #include "rpmb.h"
 
 #define STR_BUF_LEN 33
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define ATTR_RSRV() "Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID
 
 struct desc_field_offset device_desc_field_name[] = {

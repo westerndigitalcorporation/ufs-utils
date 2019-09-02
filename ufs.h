@@ -8,6 +8,7 @@
 #include "ioctl.h"
 #include "scsi_bsg_util.h"
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define BLOCK_SIZE 512
 #define MAX_UFS_COMMAND_LEN 16
 
