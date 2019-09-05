@@ -73,7 +73,7 @@ Output:
         -p       path to ufs bsg device
 
         Example - Read the bkops operation flag
-                ufs-utils fl -t 4 -p /dev/block/ufs-bsg
+                ufs-utils fl -t 4 -p /dev/ufs-bsg
 
 ## Authors ##
 signed-off-by:Arthur Simchaev (arthur.simchaev@wdc.com)
