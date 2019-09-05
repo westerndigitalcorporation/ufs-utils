@@ -28,22 +28,22 @@ Copy the tool into a directory on the device (e.g.
 Run the tool without arguments or with -h/--help
     options in order to list the supported features:   
 E.g. Run:  
-./ufs-tool --help  
+./ufs-utils --help  
 Output:
-    ufs-tool help|--help|-h Show the help.
+    ufs-utils help|--help|-h Show the help.
 
-        ufs-tool -v
+        ufs-utils -v
                 Show the version.
 
-        ufs-tool <desc | attr | fl | err_hist | uic | ffu> --help|-h
+        ufs-utils <desc | attr | fl | err_hist | uic | ffu> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to
     get full information related to the feature, all options and the
-    examples. E.g.: getting help for ufs flags Run: ./ufs-tool fl --help
+    examples. E.g.: getting help for ufs flags Run: ./ufs-utils fl --help
     Output: Flags command usage:
 
-        ufs-tool fl [-t] <flag idn> [-a|-r|-o|-e] [-p] <device_path> 
+        ufs-utils fl [-t] <flag idn> [-a|-r|-o|-e] [-p] <device_path> 
 
         -t       Flags type idn
                  Available flags and its access, based on UFS ver 3.0 :
@@ -73,7 +73,7 @@ Output:
         -p       path to ufs bsg device
 
         Example - Read the bkops operation flag
-                ufs-tool fl -t 4 -p /dev/block/ufs-bsg
+                ufs-utils fl -t 4 -p /dev/block/ufs-bsg
 
 ## Authors ##
 signed-off-by:Arthur Simchaev (arthur.simchaev@wdc.com)
