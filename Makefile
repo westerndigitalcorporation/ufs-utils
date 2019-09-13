@@ -19,7 +19,10 @@ objects = \
 	scsi_bsg_util.o \
 	ufs_err_hist.o \
 	unipro.o \
-	ufs_ffu.o
+	ufs_ffu.o \
+	rpmb.o \
+	hmac_sha/hmac_sha2.o \
+	hmac_sha/sha2.o
 
 CHECKFLAGS = -Wall  -Wundef
 

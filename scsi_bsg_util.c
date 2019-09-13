@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "ioctl.h"
 #include "ufs.h"
@@ -40,9 +41,6 @@ static const char *const snstext[] = {
 	"Miscompare",	    /* E: Source data and data on the medium
 				  do not agree */
 };
-
-static int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf,
-		__u8 cmd_len, __u32 byte_cnt, int dir);
 
 /* Get sense key string or NULL if not available */
 static const char *sense_key_string(__u8 key)
@@ -127,6 +125,26 @@ int read_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id,
 	return ret;
 }
 
+int ufs_request_sense(int unit_fd, __u8 *buf, int bytes)
+{
+	int ret;
+	unsigned char cmd[] = {
+		REQUEST_SENSE, 0, 0, 0, 18, 0
+	};
+
+	if ((unit_fd < 0) || (!buf) || (bytes <= 0) || (bytes > 18)) {
+		print_error("ufs_request_sense() wrong parameters");
+		return -EINVAL;
+	}
+
+	ret = send_bsg_scsi_cmd(unit_fd, cmd, buf, 6, bytes, SG_DXFER_FROM_DEV);
+	if (ret < 0) {
+		print_error("SG_IO REQUEST SENSE error ret %d", ret);
+	}
+
+	return ret;
+}
+
 void prepare_upiu(struct ufs_bsg_request *bsg_req,
 		__u8 query_req_func, __u16 data_len,
 		__u8 opcode, __u8 idn, __u8 index, __u8 sel)
@@ -159,14 +177,14 @@ void prepare_upiu(struct ufs_bsg_request *bsg_req,
  * @dir: The cmd direction
  *
  **/
-static int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
+int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
 		__u32 byte_cnt, int dir)
 {
 	int ret;
 	struct sg_io_v4 io_hdr_v4 = {0};
 	unsigned char sense_buffer[SENSE_BUFF_LEN] = {0};
 
-	if (buf == NULL || cdb == NULL) {
+	if ((byte_cnt && buf == NULL) || cdb == NULL) {
 		print_error("send_bsg_scsi_cmd: wrong parameters");
 		return -EINVAL;
 	}

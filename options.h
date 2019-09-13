@@ -40,6 +40,11 @@ struct tool_options {
 	int target;
 	int size;
 	char path[PATH_MAX];
+	/* cpy_of_argc and cpy_of_argv are copies of argc and argv of
+	 * main() function
+	 */
+	int cpy_of_argc;
+	char **cpy_of_argv;
 };
 
 int init_options(int opt_cnt, char **opt_arr, struct tool_options *options);

@@ -16,8 +16,9 @@
 #include "ufs_err_hist.h"
 #include "unipro.h"
 #include "ufs_ffu.h"
+#include "rpmb.h"
 
-#define UFS_BSG_UTIL_VERSION	"1.3"
+#define UFS_BSG_UTIL_VERSION	"1.4"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -36,6 +37,7 @@ static struct tool_command commands[] = {
 	{ do_err_hist, "err_hist", ERR_HIST_TYPE},
 	{ do_uic, "uic", UIC_TYPE},
 	{ do_ffu, "ffu", FFU_TYPE},
+	{ do_rpmb, "rpmb", RPMB_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -56,7 +58,7 @@ static void help(char *np)
 {
 	char help_str[256] = {0};
 
-	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu>");
+	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | rpmb>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
@@ -64,11 +66,13 @@ static void help(char *np)
 		" --help|-h\n\t\tShow detailed help for a command\n");
 }
 
-static void initialized_options(struct tool_options *options)
+static void initialized_options(struct tool_options *options, int argc, char **argv)
 {
 	memset(options, INVALID, sizeof(*options));
 	options->path[0] = '\0';
 	options->data = NULL;
+	options->cpy_of_argc = argc;
+	options->cpy_of_argv = argv;
 }
 
 static int parse_args(int argc, char **argv, command_function *func,
@@ -108,7 +112,14 @@ static int parse_args(int argc, char **argv, command_function *func,
 		goto out;
 	}
 
-	rc = init_options(argc, argv, options);
+	if (options->config_type_inx == RPMB_TYPE)
+		/*
+		 * In order to avoid command parameter confusion, for
+		 * the rpmb operation, will parse its own commad in do_rpmb()
+		 */
+		goto out;
+	else
+		rc = init_options(argc, argv, options);
 
 out:
 	return rc;
@@ -154,7 +165,7 @@ int main(int ac, char **av)
 	command_function func = NULL;
 	struct tool_options options;
 
-	initialized_options(&options);
+	initialized_options(&options, ac, av);
 
 	rc = parse_args(ac, av, &func, &options);
 	if (rc)

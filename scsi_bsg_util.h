@@ -23,9 +23,14 @@
 #define SENSE_BUFF_LEN	(32)
 #define WRITE_BUF_CMDLEN 10
 #define READ_BUF_CMDLEN 10
+#define SEC_PROTOCOL_CMDLEN 12
 #define WRITE_BUFFER_CMD 0x3B
 #define READ_BUFFER_CMD 0x3c
-
+#define REQUEST_SENSE 0x03
+#define SECURITY_PROTOCOL_OUT 0xB5
+#define SECURITY_PROTOCOL_IN  0xA2
+#define UFS_SECURITY_PROTOCOL 0xEC
+#define UFS_SECURITY_PROTOCOL_SPECIFIC 0x0001
 /**
  * struct utp_upiu_header - UPIU header structure
  * @dword_0: UPIU header DW-0
@@ -117,6 +122,8 @@ struct ufs_bsg_reply {
 #define BSG_REPLY_SZ (sizeof(struct ufs_bsg_reply))
 #define BSG_REQUEST_SZ (sizeof(struct ufs_bsg_request))
 
+int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf,
+		__u8 cmd_len, __u32 byte_cnt, int dir);
 int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 		struct ufs_bsg_reply *reply_buff, __u32 request_len,
 		__u32 reply_len, __u8 *data_buf);
@@ -126,5 +133,6 @@ int read_buffer(int fd, __u8 *buf, uint8_t mode, __u8 buf_id,
 		__u32 buf_offset, int byte_count);
 int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
 		int byte_count);
+int ufs_request_sense(int unit_fd, __u8 *buf, int bytes);
 #endif /* BSG_UTIL_H_ */
 
