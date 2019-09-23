@@ -25,7 +25,7 @@ CHECKFLAGS = -Wall  -Wundef
 
 DEPFLAGS = -Wp,-MMD,$(@D)/.$(@F).d,-MT,$@
 override CFLAGS := $(CHECKFLAGS) $(AM_CFLAGS) $(CFLAGS) $(INC_DIR) $(CXXFLAGS)
-progs = ufs-tool
+progs = ufs-utils
 ifdef C
 	check = sparse $(CHECKFLAGS)
 endif
@@ -36,12 +36,12 @@ ifdef C
 endif
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-ufs-tool:$(objects)
+ufs-utils:$(objects)
 	$(CC) $(CFLAGS) -o $@ $(objects) $(LDFLAGS) $(LIBS)
 
 help:
 	@echo "\033[31m==============Build Instructions==============\033[0m"
-	@echo "\033[92mTo build ufs_bsg tool follow the following steps\033[0m"
+	@echo "\033[92mTo build ufs_utils follow the following steps\033[0m"
 	@echo "\033[92m1 Set CROSS_COMPILE variable\033[0m"
 	@echo "\033[92m2 Build the tool using \"make\"\033[0m"
 	@echo "\033[92m3 Clean the tool using \"make clean\"\033[0m"
