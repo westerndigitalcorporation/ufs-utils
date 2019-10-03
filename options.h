@@ -39,6 +39,8 @@ struct tool_options {
 	/* @DME_LOCAL or @DME_PEER */
 	int target;
 	int size;
+	int offset;
+	int len;
 	char path[PATH_MAX];
 };
 
