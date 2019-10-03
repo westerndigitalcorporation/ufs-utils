@@ -9,7 +9,6 @@
 #include "scsi_bsg_util.h"
 
 #define BLOCK_SIZE 512
-#define MAX_UFS_COMMAND_LEN 16
 
 /*
  * Generally the max HW max chunk is 512KB,
