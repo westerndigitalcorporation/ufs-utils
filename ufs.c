@@ -150,6 +150,36 @@ void print_error(const char *msg, ...)
 	printf("\n");
 }
 
+void print_command_help(char *prgname, int config_type)
+{
+	switch (config_type) {
+	case DESC_TYPE:
+		desc_help(prgname);
+		break;
+	case ATTR_TYPE:
+		attribute_help(prgname);
+		break;
+	case FLAG_TYPE:
+		flag_help(prgname);
+		break;
+	case ERR_HIST_TYPE:
+		err_hist_help(prgname);
+		break;
+	case FFU_TYPE:
+		ffu_help(prgname);
+		break;
+	case UIC_TYPE:
+		unipro_help(prgname);
+		break;
+	case VENDOR_BUFFER_TYPE:
+		vendor_help(prgname);
+		break;
+	default:
+		print_error("Unsupported cmd type");
+		break;
+	}
+}
+
 int main(int ac, char **av)
 {
 	int rc;

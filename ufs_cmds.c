@@ -15,11 +15,6 @@
 #include "ufs.h"
 #include "ufs_cmds.h"
 #include "options.h"
-#include "scsi_bsg_util.h"
-#include "ufs_err_hist.h"
-#include "unipro.h"
-#include "ufs_ffu.h"
-#include "ufs_vendor.h"
 
 #define STR_BUF_LEN 33
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -1152,34 +1147,4 @@ int do_flags(struct tool_options *opt)
 
 	close(fd);
 	return rc;
-}
-
-void print_command_help(char *prgname, int config_type)
-{
-	switch (config_type) {
-	case DESC_TYPE:
-		desc_help(prgname);
-		break;
-	case ATTR_TYPE:
-		attribute_help(prgname);
-		break;
-	case FLAG_TYPE:
-		flag_help(prgname);
-		break;
-	case ERR_HIST_TYPE:
-		err_hist_help(prgname);
-		break;
-	case FFU_TYPE:
-		ffu_help(prgname);
-		break;
-	case UIC_TYPE:
-		unipro_help(prgname);
-		break;
-	case VENDOR_BUFFER_TYPE:
-		vendor_help(prgname);
-		break;
-	default:
-		print_error("Unsupported cmd type");
-		break;
-	}
 }
