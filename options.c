@@ -203,7 +203,7 @@ static int verify_and_set_idn(struct tool_options *options)
 	int idn = INVALID;
 
 	if (options->idn != INVALID) {
-		print_error("duplicated desc type option");
+		print_error("duplicated type option");
 		goto out;
 	}
 
@@ -421,8 +421,7 @@ out:
 static int verify_read(struct tool_options *options)
 {
 	if (options->opr != INVALID) {
-		print_error("duplicated operation option(read) 2%d",
-			    options->opr);
+		print_error("duplicated operation option(read)");
 		goto out;
 	}
 
