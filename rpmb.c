@@ -779,7 +779,7 @@ static int rpmb_data_write(struct rpmb_opt *opt)
 	}
 
 	file_fd = open(opt->io_file, O_RDONLY);
-	if (bsg_fd < 0) {
+	if (file_fd < 0) {
 		print_error("Failed to open input file");
 		goto out;
 	}
