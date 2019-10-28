@@ -1,4 +1,4 @@
-# UFS Tool ver 1.4 #
+# UFS Tool ver 1.5 #
 
 ## Description: ##
 a) Read/Write device flags, attributes & descriptors by
@@ -10,7 +10,8 @@ applied:
 b) Error History   
 c) Get/Set UNIPRO attributes   
 d) FFU - Field Firmware Update   
-e) Send Vendor commands based on SCSI WRITE/READ Buffer commands
+e) Send Vendor commands based on SCSI WRITE/READ Buffer commands   
+f) RPMB functionality   
 The tool is aligned to the UFS 3.0 spec.   
 
 ## Build: ##
@@ -36,7 +37,7 @@ Output:
         ufs-utils -v
                 Show the version.
 
-        ufs-utils <desc | attr | fl | err_hist | uic | ffu | vendor> --help|-h
+        ufs-utils <desc | attr | fl | err_hist | uic | ffu | vendor | rpmb> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to

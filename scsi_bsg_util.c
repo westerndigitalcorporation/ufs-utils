@@ -13,11 +13,13 @@
 #include "ioctl.h"
 #include "ufs.h"
 #include "scsi_bsg_util.h"
+#include "ufs_rpmb.h"
 
 #define UPIU_HEADER_DWORD(byte3, byte2, byte1, byte0)\
 			htobe32((byte3 << 24) | (byte2 << 16) |\
 				(byte1 << 8) | (byte0))
-
+#define SEC_SPEC_OFFSET 2
+#define SEC_TRANS_LEN_OFFSET 6
 /* description of the sense key values */
 static const char *const snstext[] = {
 	"No Sense",	    /* 0: There is no sense information */
@@ -127,6 +129,52 @@ int read_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id,
 	return ret;
 }
 
+int scsi_security_in(int fd, struct rpmb_frame *frame, int cnt, __u8 region)
+{
+	int ret;
+	__u32 trans_len = cnt * sizeof(struct rpmb_frame);
+	__u16 sec_spec = (region << 8) | SEC_SPECIFIC_UFS_RPMB;
+	unsigned char sec_in_cmd[SEC_PROTOCOL_CMD_SIZE] = {
+			SECURITY_PROTOCOL_IN, SEC_PROTOCOL_UFS,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+	WRITE_LOG("Start : %s\n", __func__);
+	if (fd < 0 || frame == NULL || cnt <= 0) {
+		print_error("scsi sec_in cmd: wrong parameters");
+		return ERROR;
+	}
+
+	*(__u16 *)(sec_in_cmd + SEC_SPEC_OFFSET) = htobe16(sec_spec);
+	*(__u32 *)(sec_in_cmd + SEC_TRANS_LEN_OFFSET) = htobe32(trans_len);
+
+	ret = send_bsg_scsi_cmd(fd, sec_in_cmd, frame, SEC_PROTOCOL_CMD_SIZE,
+		trans_len, SG_DXFER_FROM_DEV);
+
+	return ret;
+}
+
+int scsi_security_out(int fd, struct rpmb_frame *frame_in,
+		unsigned int cnt, __u8 region)
+{
+	int ret;
+	__u32 trans_len = cnt * sizeof(struct rpmb_frame);
+	__u16 sec_spec = (region << 8) | SEC_SPECIFIC_UFS_RPMB;
+	unsigned char sec_out_cmd[SEC_PROTOCOL_CMD_SIZE] = {
+			SECURITY_PROTOCOL_OUT, SEC_PROTOCOL_UFS,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+	if (fd < 0 || frame_in == NULL || cnt <= 0) {
+		print_error("scsi sec_out cmd: wrong parameters");
+		return ERROR;
+	}
+	*(__u16 *)(sec_out_cmd + SEC_SPEC_OFFSET) = htobe16(sec_spec);
+	*(__u32 *)(sec_out_cmd + SEC_TRANS_LEN_OFFSET) = htobe32(trans_len);
+	ret = send_bsg_scsi_cmd(fd, sec_out_cmd, frame_in,
+			SEC_PROTOCOL_CMD_SIZE, trans_len, SG_DXFER_TO_DEV);
+
+	return ret;
+}
+
 void prepare_upiu(struct ufs_bsg_request *bsg_req,
 		__u8 query_req_func, __u16 data_len,
 		__u8 opcode, __u8 idn, __u8 index, __u8 sel)
@@ -163,10 +211,10 @@ static int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
 		__u32 byte_cnt, int dir)
 {
 	int ret;
-	struct sg_io_v4 io_hdr_v4 = {0};
-	unsigned char sense_buffer[SENSE_BUFF_LEN] = {0};
+	struct sg_io_v4 io_hdr_v4 = { 0 };
+	unsigned char sense_buffer[SENSE_BUFF_LEN] = { 0 };
 
-	if (buf == NULL || cdb == NULL) {
+	if ((byte_cnt && buf == NULL) || cdb == NULL) {
 		print_error("send_bsg_scsi_cmd: wrong parameters");
 		return -EINVAL;
 	}
@@ -221,7 +269,7 @@ int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 		__u32 reply_buf_len, __u8 *data_buf)
 {
 	int ret;
-	struct sg_io_v4 io_hdr_v4 = {0};
+	struct sg_io_v4 io_hdr_v4 = { 0 };
 
 	if (request_buff == NULL || reply_buff == NULL) {
 		print_error("%s: wrong parameters", __func__);

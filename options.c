@@ -11,6 +11,7 @@
 #include "ufs.h"
 #include "unipro.h"
 #include "ufs_ffu.h"
+#include "ufs_rpmb.h"
 
 static int verify_and_set_idn(struct tool_options *options);
 static int verify_read(struct tool_options *options);
@@ -25,6 +26,14 @@ static int verify_target(struct tool_options *options, int target);
 static int verify_and_set_ffu_chunk_size(struct tool_options *options);
 static int verify_length(struct tool_options *options);
 static int verify_offset(struct tool_options *options);
+static int verify_and_set_start_addr(struct tool_options *options);
+static int verify_and_set_num_block(struct tool_options *options);
+static int verify_lun(struct tool_options *options);
+static int verify_and_set_key_path(struct tool_options *options);
+static int verify_region(struct tool_options *options);
+
+#define MAX_ADDRESS 0xFFFF
+
 
 int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 {
@@ -37,7 +46,7 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		{"local", no_argument, NULL, 'l'}, /* UFS host*/
 		{NULL, 0, NULL, 0}
 	};
-	static char *short_opts = "t:p:w:i:s:O:L:rocea";
+	static char *short_opts = "t:p:w:i:s:O:L:n:k:m:d:rocea";
 
 	while (-1 !=
 	      (curr_opt = getopt_long(opt_cnt, opt_arr, short_opts,
@@ -81,6 +90,8 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		case 's':
 			if (options->config_type_inx == FFU_TYPE)
 				rc = verify_and_set_ffu_chunk_size(options);
+			else if (options->config_type_inx == RPMB_CMD_TYPE)
+				rc = verify_and_set_start_addr(options);
 			else
 				rc = verify_and_set_selector(options);
 			break;
@@ -90,11 +101,23 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		case 'l':
 			rc = verify_target(options, DME_LOCAL);
 			break;
+		case 'd':
+			rc = verify_lun(options);
+			break;
 		case 'L':
 			rc = verify_length(options);
 			break;
 		case 'O':
 			rc = verify_offset(options);
+			break;
+		case 'n':
+			rc = verify_and_set_num_block(options);
+			break;
+		case 'k':
+			rc = verify_and_set_key_path(options);
+			break;
+		case 'm':
+			rc = verify_region(options);
 			break;
 		default:
 			rc = -EINVAL;
@@ -247,6 +270,12 @@ static int verify_and_set_idn(struct tool_options *options)
 			goto out;
 		}
 		break;
+	case RPMB_CMD_TYPE:
+		if (idn >= RPMB_CMD_MAX) {
+			print_error("Invalid rpmb cmd %d", idn);
+			goto out;
+		}
+		break;
 	default:
 		print_error("Invalid UFS configuration type %d", idn);
 		goto out;
@@ -307,6 +336,178 @@ static int verify_offset(struct tool_options *options)
 
 out:
 	return ERROR;
+}
+
+static int verify_and_set_start_addr(struct tool_options *options)
+{
+	int start_block = 0;
+
+	if (options->config_type_inx != RPMB_CMD_TYPE) {
+		print_error("start block address using only for rpmb cmd");
+		goto out;
+	}
+
+	start_block = atoi(optarg);
+	if ((start_block == 0 && strcmp(optarg, "0")) ||
+	     start_block < 0 || start_block > MAX_ADDRESS) {
+		print_error("Invalid start address");
+		goto out;
+	} else
+		options->start_block = start_block;
+	return OK;
+
+out:
+	return ERROR;
+}
+
+static int verify_and_set_num_block(struct tool_options *options)
+{
+	int num_block = 0;
+
+	if (options->config_type_inx != RPMB_CMD_TYPE) {
+		print_error("num_block using only for rpmb cmd");
+		goto out;
+	}
+
+	num_block = atoi(optarg);
+	if ((num_block == 0 && strcmp(optarg, "0")) || num_block < 0) {
+		print_error("Invalid numbers of block");
+		goto out;
+	} else
+		options->num_block = num_block;
+	return OK;
+
+out:
+	return ERROR;
+
+}
+
+static int verify_and_set_key_path(struct tool_options *options)
+{
+	if (options->config_type_inx != RPMB_CMD_TYPE) {
+		print_error("key path using only for rpmb cmd");
+		goto out;
+	}
+
+	if (options->keypath[0] != '\0') {
+		print_error("Duplicate Key path");
+		goto out;
+	}
+
+	if ((optarg == NULL) || (optarg[0] == 0)) {
+		print_error("Key path missed");
+		goto out;
+	}
+
+	if (strlen(optarg) >= PATH_MAX) {
+		print_error("Key path is too long");
+		goto out;
+	}
+
+	strcpy(options->keypath, optarg);
+	return OK;
+
+out:
+	return ERROR;
+}
+
+static int verify_lun(struct tool_options *options)
+{
+	int8_t lun = 0;
+
+	lun = atoi(optarg);
+	if ((lun == 0 && strcmp(optarg, "0")) || lun < 0) {
+		print_error("Invalid lun");
+		return ERROR;
+	}
+	options->lun = lun;
+	return OK;
+}
+
+static int verify_region(struct tool_options *options)
+{
+	int8_t region = 0;
+
+	region = atoi(optarg);
+	if ((region == 0 && strcmp(optarg, "0")) || region < 0
+		|| region > 3) {
+		print_error("Invalid RPMB region");
+		return ERROR;
+	}
+	options->region = region;
+	return OK;
+}
+
+static int verify_rpmb_arg(struct tool_options *options)
+{
+	int ret = OK;
+	if (options->region == INVALID)
+		options->region = 0;
+
+	switch (options->idn) {
+	case AUTHENTICATION_KEY:
+		if (options->keypath[0] == 0) {
+			print_error("Key path is missed");
+			ret = ERROR;
+		}
+	break;
+	case READ_RPMB:
+		if (!options->data) {
+			print_error("Output data file missed");
+			ret = ERROR;
+		}
+	break;
+	case READ_SEC_RPMB_CONF_BLOCK:
+		if (!options->data) {
+			print_error("Output data file missed");
+			ret = ERROR;
+		}
+		if (options->lun == INVALID) {
+			print_error("LUN parameter is missed");
+			ret = ERROR;
+		}
+
+		if (options->region > 0) {
+			print_error("Config block exist only in region 0");
+			ret = ERROR;
+		}
+	break;
+	case WRITE_RPMB:
+		if (!options->data) {
+			print_error("Input data file missed");
+			ret = ERROR;
+		}
+		if (options->keypath[0] == 0) {
+			print_error("Key path is missed");
+			ret = ERROR;
+		}
+		if (options->num_block == INVALID)
+			options->num_block = 1;
+		if (options->start_block == INVALID)
+			options->start_block = 0;
+	break;
+	case WRITE_SEC_RPMB_CONF_BLOCK:
+		if (!options->data) {
+			print_error("Input data file missed");
+			ret = ERROR;
+		}
+		if (options->keypath[0] == 0) {
+			print_error("Key path is missed");
+			ret = ERROR;
+		}
+		if (options->region > 0) {
+			print_error("Config block exist only in region 0");
+			ret = ERROR;
+		}
+	break;
+	case READ_WRITE_COUNTER:
+	break;
+	default:
+		print_error("Unsupported RPMB cmd %d",
+			    options->idn);
+	break;
+	}
+	return ret;
 }
 
 static int verify_arg_and_set_default(struct tool_options *options)
@@ -385,8 +586,13 @@ static int verify_arg_and_set_default(struct tool_options *options)
 	}
 
 	if ((options->config_type_inx == VENDOR_BUFFER_TYPE) &&
-		(options->len == INVALID))
-			options->len = BLOCK_SIZE;
+	    (options->len == INVALID))
+		options->len = BLOCK_SIZE;
+
+	if (options->config_type_inx == RPMB_CMD_TYPE) {
+		if (verify_rpmb_arg(options))
+			goto out;
+	}
 
 	return OK;
 
@@ -493,7 +699,8 @@ static int verify_write(struct tool_options *options)
 		}
 	}
 	if (options->config_type_inx == FFU_TYPE ||
-	    options->config_type_inx == VENDOR_BUFFER_TYPE){
+	    options->config_type_inx == VENDOR_BUFFER_TYPE ||
+	    options->config_type_inx == RPMB_CMD_TYPE) {
 		int len = strlen(optarg) + 1;
 
 		if (len >= PATH_MAX) {

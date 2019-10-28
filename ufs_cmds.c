@@ -320,7 +320,9 @@ static struct query_err_res query_err_status[] = {
 	{"Invalid OPCODE", 0xFE},
 	{"General failure", 0xFF}
 };
-
+int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
+		struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
+		__u16 desc_buf_len, __u8 *data_buf);
 static int do_unit_desc(int fd, __u8 lun);
 static int do_power_desc(int fd);
 static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file);
@@ -330,9 +332,6 @@ int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
 			__u8 opcode, __u8 idn, __u8 index, __u8 sel,
 			__u16 req_buf_len, __u16 res_buf_len, __u8 *data_buf);
-static int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
-			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
-			__u16 desc_buf_len, __u8 *data_buf);
 static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 			__u16 desc_buf_len, __u8 *data_buf);
@@ -549,7 +548,7 @@ int do_device_desc(int fd, __u8 *desc_buff)
 		print_error("Could not read device descriptor , error %d", rc);
 		goto out;
 	}
-	if(!desc_buff)
+	if (!desc_buff)
 		print_descriptors("Device Descriptor", data_buf,
 				device_desc_field_name,
 				ARRAY_SIZE(device_desc_field_name));
@@ -925,7 +924,7 @@ static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			0, desc_buf_len, 0, data_buf);
 }
 
-static int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
+int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 			__u16 desc_buf_len, __u8 *data_buf)
 {
