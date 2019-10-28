@@ -23,6 +23,8 @@ static int verify_and_set_index(struct tool_options *options);
 static int verify_and_set_selector(struct tool_options *options);
 static int verify_target(struct tool_options *options, int target);
 static int verify_and_set_ffu_chunk_size(struct tool_options *options);
+static int verify_length(struct tool_options *options);
+static int verify_offset(struct tool_options *options);
 
 int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 {
@@ -35,7 +37,7 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		{"local", no_argument, NULL, 'l'}, /* UFS host*/
 		{NULL, 0, NULL, 0}
 	};
-	static char *short_opts = "t:p:w:i:s:rocea";
+	static char *short_opts = "t:p:w:i:s:O:L:rocea";
 
 	while (-1 !=
 	      (curr_opt = getopt_long(opt_cnt, opt_arr, short_opts,
@@ -87,6 +89,12 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 			break;
 		case 'l':
 			rc = verify_target(options, DME_LOCAL);
+			break;
+		case 'L':
+			rc = verify_length(options);
+			break;
+		case 'O':
+			rc = verify_offset(options);
 			break;
 		default:
 			rc = -EINVAL;
@@ -195,7 +203,7 @@ static int verify_and_set_idn(struct tool_options *options)
 	int idn = INVALID;
 
 	if (options->idn != INVALID) {
-		print_error("duplicated desc type option");
+		print_error("duplicated type option");
 		goto out;
 	}
 
@@ -251,6 +259,56 @@ out:
 	return ERROR;
 }
 
+static int verify_length(struct tool_options *options)
+{
+	int len = INVALID;
+
+	if (options->len != INVALID) {
+		print_error("duplicated length option");
+		goto out;
+	}
+
+	/* In case atoi returned 0. Check that is real 0 and not error
+	 * arguments. Also check that the value is in correct range
+	 */
+	len = atoi(optarg);
+	if (!optarg || len == 0 || len < 0 || len > BLOCK_SIZE) {
+		print_error("Invalid argument for length. The value should be between 1 to %dB",
+				BLOCK_SIZE);
+		goto out;
+	}
+
+	options->len = len;
+	return OK;
+
+out:
+	return ERROR;
+}
+
+static int verify_offset(struct tool_options *options)
+{
+	int offset = INVALID;
+
+	if (options->offset != INVALID) {
+		print_error("duplicated offset option");
+		goto out;
+	}
+	if (strstr(optarg, "0x") || strstr(optarg, "0X"))
+		offset = (int)strtol(optarg, NULL, 0);
+	else
+		offset = atoi(optarg);
+	if (!optarg || (offset == 0 && strcmp(optarg, "0")) || offset < 0) {
+		print_error("Invalid argument for offset");
+		goto out;
+	}
+
+	options->offset = offset;
+	return OK;
+
+out:
+	return ERROR;
+}
+
 static int verify_arg_and_set_default(struct tool_options *options)
 {
 	if (options->path[0] == '\0') {
@@ -266,6 +324,7 @@ static int verify_arg_and_set_default(struct tool_options *options)
 		goto out;
 	}
 	if (options->config_type_inx != ERR_HIST_TYPE &&
+			options->config_type_inx != VENDOR_BUFFER_TYPE &&
 			options->opr != READ_ALL &&
 			options->idn == INVALID) {
 		print_error("The type idn is missed");
@@ -319,11 +378,15 @@ static int verify_arg_and_set_default(struct tool_options *options)
 			/*Default operation*/
 			options->idn = UFS_FFU;
 		if ((options->idn != UFS_CHECK_FFU_STATUS) &&
-				(options->data == NULL)) {
+			(options->data == NULL)) {
 			print_error("The FW file name is missing");
 			goto out;
 		}
 	}
+
+	if ((options->config_type_inx == VENDOR_BUFFER_TYPE) &&
+		(options->len == INVALID))
+			options->len = BLOCK_SIZE;
 
 	return OK;
 
@@ -358,8 +421,7 @@ out:
 static int verify_read(struct tool_options *options)
 {
 	if (options->opr != INVALID) {
-		print_error("duplicated operation option(read) 2%d",
-			    options->opr);
+		print_error("duplicated operation option(read)");
 		goto out;
 	}
 
@@ -430,7 +492,8 @@ static int verify_write(struct tool_options *options)
 			goto out;
 		}
 	}
-	if (options->config_type_inx == FFU_TYPE) {
+	if (options->config_type_inx == FFU_TYPE ||
+	    options->config_type_inx == VENDOR_BUFFER_TYPE){
 		int len = strlen(optarg) + 1;
 
 		if (len >= PATH_MAX) {

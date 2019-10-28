@@ -16,6 +16,7 @@
 #include "ufs_err_hist.h"
 #include "unipro.h"
 #include "ufs_ffu.h"
+#include "ufs_vendor.h"
 
 #define UFS_BSG_UTIL_VERSION	"1.3"
 typedef int (*command_function)(struct tool_options *opt);
@@ -36,6 +37,7 @@ static struct tool_command commands[] = {
 	{ do_err_hist, "err_hist", ERR_HIST_TYPE},
 	{ do_uic, "uic", UIC_TYPE},
 	{ do_ffu, "ffu", FFU_TYPE},
+	{ do_vendor, "vendor", VENDOR_BUFFER_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -56,7 +58,7 @@ static void help(char *np)
 {
 	char help_str[256] = {0};
 
-	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu>");
+	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
@@ -146,6 +148,36 @@ void print_error(const char *msg, ...)
 	vprintf(msg, args);
 	va_end(args);
 	printf("\n");
+}
+
+void print_command_help(char *prgname, int config_type)
+{
+	switch (config_type) {
+	case DESC_TYPE:
+		desc_help(prgname);
+		break;
+	case ATTR_TYPE:
+		attribute_help(prgname);
+		break;
+	case FLAG_TYPE:
+		flag_help(prgname);
+		break;
+	case ERR_HIST_TYPE:
+		err_hist_help(prgname);
+		break;
+	case FFU_TYPE:
+		ffu_help(prgname);
+		break;
+	case UIC_TYPE:
+		unipro_help(prgname);
+		break;
+	case VENDOR_BUFFER_TYPE:
+		vendor_help(prgname);
+		break;
+	default:
+		print_error("Unsupported cmd type");
+		break;
+	}
 }
 
 int main(int ac, char **av)

@@ -9,7 +9,6 @@
 #include "scsi_bsg_util.h"
 
 #define BLOCK_SIZE 512
-#define MAX_UFS_COMMAND_LEN 16
 
 /*
  * Generally the max HW max chunk is 512KB,
@@ -135,7 +134,8 @@ enum ufs_cong_type {
 	FLAG_TYPE,
 	ERR_HIST_TYPE,
 	UIC_TYPE,
-	FFU_TYPE
+	FFU_TYPE,
+	VENDOR_BUFFER_TYPE
 };
 
 /* UTP UPIU Transaction Codes Initiator to Target */
