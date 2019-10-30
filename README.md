@@ -1,4 +1,4 @@
-# UFS Tool ver 1.3 #
+# UFS Tool ver 1.4 #
 
 ## Description: ##
 a) Read/Write device flags, attributes & descriptors by
