@@ -900,7 +900,7 @@ int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 
 	if (rc) {
 		print_error("%s: query failed, status %d idn: %d, i: %d, s: %d",
-			__func__, rc, idn, index);
+			__func__, rc, idn, index, sel);
 		rc = ERROR;
 		goto out;
 	}
