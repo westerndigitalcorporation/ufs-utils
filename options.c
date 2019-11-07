@@ -164,7 +164,7 @@ static int verify_and_set_index(struct tool_options *options)
 	else
 		index = atoi(optarg);
 
-	if (!optarg || (index == 0 && strcmp(optarg, "0")) || index < 0) {
+	if ((index == 0 && strcmp(optarg, "0")) || index < 0) {
 		print_error("Invalid argument for index");
 		goto out;
 	}
@@ -209,7 +209,7 @@ static int verify_and_set_selector(struct tool_options *options)
 	 * arguments . Also check that the value is in correct range
 	 */
 	selector = atoi(optarg);
-	if (!optarg || (selector == 0 && strcmp(optarg, "0")) || selector < 0) {
+	if ((selector == 0 && strcmp(optarg, "0")) || selector < 0) {
 		print_error("Invalid argument for selector");
 		goto out;
 	}
@@ -234,7 +234,7 @@ static int verify_and_set_idn(struct tool_options *options)
 	 * arguments. Also check that the value is in correct range
 	 */
 	idn = atoi(optarg);
-	if (!optarg || (idn == 0 && strcmp(optarg, "0")) || idn < 0) {
+	if ((idn == 0 && strcmp(optarg, "0")) || idn < 0) {
 		print_error("Invalid argument for idn");
 		goto out;
 	}
@@ -301,7 +301,7 @@ static int verify_length(struct tool_options *options)
 	 * arguments. Also check that the value is in correct range
 	 */
 	len = atoi(optarg);
-	if (!optarg || len == 0 || len < 0 || len > BLOCK_SIZE) {
+	if (len == 0 || len < 0 || len > BLOCK_SIZE) {
 		print_error("Invalid argument for length. The value should be between 1 to %dB",
 				BLOCK_SIZE);
 		goto out;
@@ -326,7 +326,7 @@ static int verify_offset(struct tool_options *options)
 		offset = (int)strtol(optarg, NULL, 0);
 	else
 		offset = atoi(optarg);
-	if (!optarg || (offset == 0 && strcmp(optarg, "0")) || offset < 0) {
+	if ((offset == 0 && strcmp(optarg, "0")) || offset < 0) {
 		print_error("Invalid argument for offset");
 		goto out;
 	}
@@ -441,6 +441,7 @@ static int verify_region(struct tool_options *options)
 static int verify_rpmb_arg(struct tool_options *options)
 {
 	int ret = OK;
+
 	if (options->region == INVALID)
 		options->region = 0;
 
@@ -607,7 +608,7 @@ static int verify_and_set_device_path(struct tool_options *options)
 		goto out;
 	}
 
-	if (!optarg || optarg[0] == 0) {
+	if (optarg[0] == 0) {
 		print_error("Device path missed");
 		goto out;
 	}
@@ -648,7 +649,7 @@ static int verify_write(struct tool_options *options)
 		goto out;
 	}
 
-	if (!optarg || optarg[0] == 0) {
+	if (optarg[0] == 0) {
 		print_error("Data is missed");
 		goto out;
 	}
