@@ -41,6 +41,13 @@ struct tool_options {
 	int size;
 	int offset;
 	int len;
+	/*start block address for rpmb cmd */
+	int start_block;
+	int num_block;
+	int8_t lun;
+	/*RPMB region*/
+	int8_t region;
+	char keypath[PATH_MAX];
 	char path[PATH_MAX];
 };
 

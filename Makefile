@@ -2,7 +2,6 @@
 # Copyright (C) 2019 Western Digital Corporation or its affiliates
 
 export CC := $(CROSS_COMPILE)gcc
-
 AM_CFLAGS = -D_FILE_OFFSET_BITS=64 -D_FORTIFY_SOURCE=2
 CFLAGS ?= -g -O2 -static
 
@@ -20,9 +19,12 @@ objects = \
 	ufs_err_hist.o \
 	unipro.o \
 	ufs_ffu.o \
-	ufs_vendor.o
+	ufs_vendor.o\
+	hmac_sha2.o \
+	sha2.o \
+	ufs_rpmb.o
 
-CHECKFLAGS = -Wall  -Wundef
+CHECKFLAGS = -Wall  -Wundef -Wno-missing-braces
 
 DEPFLAGS = -Wp,-MMD,$(@D)/.$(@F).d,-MT,$@
 override CFLAGS := $(CHECKFLAGS) $(AM_CFLAGS) $(CFLAGS) $(INC_DIR) $(CXXFLAGS)

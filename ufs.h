@@ -135,7 +135,8 @@ enum ufs_cong_type {
 	ERR_HIST_TYPE,
 	UIC_TYPE,
 	FFU_TYPE,
-	VENDOR_BUFFER_TYPE
+	VENDOR_BUFFER_TYPE,
+	RPMB_CMD_TYPE
 };
 
 /* UTP UPIU Transaction Codes Initiator to Target */

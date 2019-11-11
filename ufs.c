@@ -17,8 +17,9 @@
 #include "unipro.h"
 #include "ufs_ffu.h"
 #include "ufs_vendor.h"
+#include "ufs_rpmb.h"
 
-#define UFS_BSG_UTIL_VERSION	"1.4"
+#define UFS_BSG_UTIL_VERSION	"1.5"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -38,6 +39,7 @@ static struct tool_command commands[] = {
 	{ do_uic, "uic", UIC_TYPE},
 	{ do_ffu, "ffu", FFU_TYPE},
 	{ do_vendor, "vendor", VENDOR_BUFFER_TYPE},
+	{ do_rpmb, "rpmb", RPMB_CMD_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -58,7 +60,7 @@ static void help(char *np)
 {
 	char help_str[256] = {0};
 
-	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor>");
+	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor | rpmb>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
@@ -70,6 +72,7 @@ static void initialized_options(struct tool_options *options)
 {
 	memset(options, INVALID, sizeof(*options));
 	options->path[0] = '\0';
+	options->keypath[0] = '\0';
 	options->data = NULL;
 }
 
@@ -173,6 +176,9 @@ void print_command_help(char *prgname, int config_type)
 		break;
 	case VENDOR_BUFFER_TYPE:
 		vendor_help(prgname);
+		break;
+	case RPMB_CMD_TYPE:
+		rpmb_help(prgname);
 		break;
 	default:
 		print_error("Unsupported cmd type");

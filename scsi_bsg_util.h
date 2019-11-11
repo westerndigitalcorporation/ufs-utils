@@ -24,8 +24,14 @@
 #define SENSE_BUFF_LEN	(32)
 #define WRITE_BUF_CMDLEN 10
 #define READ_BUF_CMDLEN 10
+#define SEC_PROTOCOL_TIMEOUT_MSEC	(1000)
+#define SEC_PROTOCOL_CMD_SIZE		(12)
+#define SEC_PROTOCOL_UFS		(0xEC)
+#define SEC_SPECIFIC_UFS_RPMB		(0x0001)
 #define WRITE_BUFFER_CMD 0x3B
 #define READ_BUFFER_CMD 0x3c
+#define SECURITY_PROTOCOL_IN  0xa2
+#define SECURITY_PROTOCOL_OUT 0xb5
 
 /**
  * struct utp_upiu_header - UPIU header structure
@@ -114,6 +120,17 @@ struct ufs_bsg_reply {
 };
 #endif /* SCSI_BSG_UFS_H.*/
 
+struct rpmb_frame {
+	u_int8_t  stuff[196];
+	u_int8_t  key_mac[32];
+	u_int8_t  data[256];
+	u_int8_t  nonce[16];
+	u_int32_t write_counter;
+	u_int16_t addr;
+	u_int16_t block_count;
+	u_int16_t result;
+	u_int16_t req_resp;
+};
 
 #define BSG_REPLY_SZ (sizeof(struct ufs_bsg_reply))
 #define BSG_REQUEST_SZ (sizeof(struct ufs_bsg_request))
@@ -127,5 +144,8 @@ int read_buffer(int fd, __u8 *buf, uint8_t mode, __u8 buf_id,
 		__u32 buf_offset, int byte_count);
 int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
 		int byte_count);
+int scsi_security_out(int fd, struct rpmb_frame *frame_in,
+		unsigned int cnt, __u8 region);
+int scsi_security_in(int fd, struct rpmb_frame *frame, int cnt, __u8 region);
 #endif /* BSG_UTIL_H_ */
 
