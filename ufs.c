@@ -18,6 +18,7 @@
 #include "ufs_ffu.h"
 #include "ufs_vendor.h"
 #include "ufs_rpmb.h"
+#include "ufs_hmr.h"
 
 #define UFS_BSG_UTIL_VERSION	"1.5"
 typedef int (*command_function)(struct tool_options *opt);
@@ -40,6 +41,7 @@ static struct tool_command commands[] = {
 	{ do_ffu, "ffu", FFU_TYPE},
 	{ do_vendor, "vendor", VENDOR_BUFFER_TYPE},
 	{ do_rpmb, "rpmb", RPMB_CMD_TYPE},
+	{ do_hmr, "hmr", HMR_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -179,6 +181,9 @@ void print_command_help(char *prgname, int config_type)
 		break;
 	case RPMB_CMD_TYPE:
 		rpmb_help(prgname);
+		break;
+	case HMR_TYPE:
+		hmr_help(prgname);
 		break;
 	default:
 		print_error("Unsupported cmd type");
