@@ -62,7 +62,8 @@ static void help(char *np)
 {
 	char help_str[256] = {0};
 
-	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor | rpmb>");
+	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor | "
+		"rpmb | hmr>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
