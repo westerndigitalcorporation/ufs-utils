@@ -41,6 +41,9 @@ struct tool_options {
 	int size;
 	int offset;
 	int len;
+	/* HMR related */
+	int hmr_method;
+	int hmr_unit;
 	/*start block address for rpmb cmd */
 	int start_block;
 	int num_block;

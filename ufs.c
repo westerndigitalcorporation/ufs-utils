@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
+#include <limits.h>
 
 #include "ufs_cmds.h"
 #include "options.h"
@@ -190,6 +191,42 @@ void print_command_help(char *prgname, int config_type)
 		print_error("Unsupported cmd type");
 		break;
 	}
+}
+
+/*
+ * Wrapper for strtol() function.
+ *
+ * strtol() has advantages over atoi():
+ * 	- has error handling
+ *	- handles not only decimal, but acts accordingly to the 'base' argument
+ *	- accepts strings with "0x" prefix
+ *	- stores address of the first invalid character
+ */
+long str_to_long(char *nptr, int base, long *result)
+{
+	char *endptr;
+
+	if (!nptr || !result)
+		return ERROR;
+
+	/*
+	 * From man:
+	 * Since strtol() can legitimately return 0, LONG_MAX, or LONG_MIN
+	 * on both success and failure, the calling program should set errno to 0
+	 * before the call...
+	 */
+	errno = 0;
+
+	*result = strtol(optarg, &endptr, base);
+
+	if (endptr == nptr ||		/* no conversion performed */
+		*endptr != '\0' ||		/* some chars not converted */
+		*result == LONG_MIN ||	/* underflow occured */
+		*result == LONG_MAX ||	/* overflow occured */
+		errno != 0)				/* any other error */
+			return ERROR;
+
+	return OK;
 }
 
 int main(int ac, char **av)
