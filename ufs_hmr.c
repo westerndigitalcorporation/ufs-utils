@@ -362,6 +362,7 @@ static void hmr_descriptors_free(void)
 	for (i = 0; i < count; i++) {
 		if (descriptors[i].layout) {
 			free(descriptors[i].layout);
+			descriptors[i].layout = 0;
 		}
 	}
 }
