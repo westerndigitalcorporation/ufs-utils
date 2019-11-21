@@ -206,7 +206,7 @@ static inline void hmr_output_header(const char *unit_str, int method)
 	method_str = method == HMR_METHOD_FORCE ? "force" : "selective";
 
 	count = snprintf(mode_str, sizeof mode_str, "method:%s, unit:%s",
-		unit_str, method_str);
+		method_str, unit_str);
 
 	if (count >= HMR_MODE_TYPE_MAX_SIZE)
 		; /* the output was truncated, enlarge HMR_MODE_TYPE_MAX_SIZE */
