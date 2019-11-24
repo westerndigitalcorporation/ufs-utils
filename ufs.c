@@ -21,7 +21,7 @@
 #include "ufs_rpmb.h"
 #include "ufs_hmr.h"
 
-#define UFS_BSG_UTIL_VERSION	"1.5"
+#define UFS_BSG_UTIL_VERSION	"1.6"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
