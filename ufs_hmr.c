@@ -112,28 +112,12 @@ extern struct desc_field_offset device_health_desc_conf_field_name[];
 extern struct attr_fields ufs_attrs[];
 extern struct flag_fields ufs_flags[];
 
-/*
- * Descriptors with the .size > 0
- * will be allocated on the run time
- */
-#define DESC_RSRV() {0}
+static struct descriptor_health_layout desc_health_layout;
 
-struct descriptor descriptors[] = {
-	[QUERY_DESC_IDN_DEVICE]			= DESC_RSRV(),
-	[QUERY_DESC_IDN_CONFIGURAION]	= DESC_RSRV(),
-	[QUERY_DESC_IDN_UNIT]			= DESC_RSRV(),
-	[QUERY_DESC_IDN_RFU_0]			= DESC_RSRV(),
-	[QUERY_DESC_IDN_INTERCONNECT]	= DESC_RSRV(),
-	[QUERY_DESC_IDN_STRING]			= DESC_RSRV(),
-	[QUERY_DESC_IDN_RFU_1]			= DESC_RSRV(),
-	[QUERY_DESC_IDN_GEOMETRY]		= DESC_RSRV(),
-	[QUERY_DESC_IDN_POWER]			= DESC_RSRV(),
-	[QUERY_DESC_IDN_HEALTH]			= {
-		"Health",
-		sizeof(struct descriptor_health_layout),
-		0
-	},
-	[QUERY_DESC_IDN_RFU_3]			= DESC_RSRV(),
+static struct descriptor desc_health = {
+	"Health",
+	sizeof desc_health_layout,
+	&desc_health_layout
 };
 
 static inline void hmr_delay_retry(int sec)
@@ -315,82 +299,6 @@ static int hmr_dev_open(const char* path, int *fd)
 	return rc == EHMR_OK ? rc : -rc;
 }
 
-static inline void hmr_descriptors_count(size_t *count)
-{
-	*count = sizeof descriptors / sizeof descriptors[0];
-}
-
-static int hmr_descriptors_allocate(void)
-{
-	int i;
-	size_t count;
-
-	hmr_descriptors_count(&count);
-
-	for (i = 0; i < count; i++) {
-		/*
-		 * Forbid uninitialized ".name"
-		 * (although it may be empty)
-		 */
-		if (descriptors[i].size > 0 &&
-			descriptors[i].name) {
-
-			/* Avoid memory leaks */
-			if (descriptors[i].layout) {
-				print_error("hmr: allocate descriptors: memory wasn't freed.");
-				return -EHMR_FREEMEM;
-			}
-
-			descriptors[i].layout = calloc(1, descriptors[i].size);
-			if (!descriptors[i].layout) {
-				print_error("hmr: allocate descriptors: no memory.");
-				return -EHMR_NOMEM;
-			}
-		}
-	}
-
-	return EHMR_OK;
-}
-
-static void hmr_descriptors_free(void)
-{
-	int i;
-	size_t count;
-
-	hmr_descriptors_count(&count);
-
-	for (i = 0; i < count; i++) {
-		if (descriptors[i].layout) {
-			free(descriptors[i].layout);
-			descriptors[i].layout = 0;
-		}
-	}
-}
-
-static inline int hmr_descriptor_select(struct descriptor **result,
-	enum desc_idn idn)
-{
-	size_t count;
-
-	if (!result)
-		goto err;
-
-	hmr_descriptors_count(&count);
-
-	if (idn < 0 || idn >= count)
-		goto err;
-
-	if (!descriptors[idn].layout)
-		goto err;
-
-	*result = &descriptors[idn];
-
-	return EHMR_OK;
-
-err:
-	return -EHMR_INVAL;
-}
-
 static int hmr_attr_read(__u32 *result,
 	int fd,
 	struct ufs_bsg_request *bsg_req,
@@ -547,9 +455,7 @@ static int hmr_progress_read(__u32 *result,
 	struct descriptor *desc;
 	struct descriptor_health_layout *layout;
 
-	rc = hmr_descriptor_select(&desc, QUERY_DESC_IDN_HEALTH);
-	if (rc)
-		goto out;
+	desc = &desc_health;
 
 	/* Read descriptor Health */
 	rc = hmr_desc_read(desc,
@@ -798,10 +704,7 @@ static int hmr_precondition_verify(int fd,
 	 * hmr_precondition_verify_run(), so updated
 	 * refresh total count is already available.
 	 */
-	rc = hmr_descriptor_select(&desc, QUERY_DESC_IDN_HEALTH);
-	if (rc)
-		goto err;
-
+	desc = &desc_health;
 	rc = hmr_precondition_validate_totcount(totcount, desc->layout);
 	if (rc)
 		goto err;
@@ -923,9 +826,7 @@ static int hmr_postcondition_verify(int fd, __u32 totcount)
 	struct ufs_bsg_reply   bsg_rsp = {0};
 	struct descriptor *desc;
 
-	rc = hmr_descriptor_select(&desc, QUERY_DESC_IDN_HEALTH);
-	if (rc)
-		goto err;
+	desc = &desc_health;
 
 	/*
 	 * 1. Verify refresh progress.
@@ -1187,11 +1088,6 @@ int do_hmr(struct tool_options *opt)
 	/* Open dev in subject */
 	rc = hmr_dev_open(opt->path, &fd);
 	if (rc)
-		return rc; /* no need to free descriptors */
-
-	/* Allocated all required descriptors */
-	rc = hmr_descriptors_allocate();
-	if (rc)
 		goto out;
 
 	/* Make verifications prior to HMR */
@@ -1227,7 +1123,6 @@ int do_hmr(struct tool_options *opt)
 		goto out;
 
 out:
-	hmr_descriptors_free();
 	return rc;
 }
 
