@@ -91,6 +91,7 @@ struct descriptor_health_layout {
 #pragma pack(pop)
 
 struct descriptor {
+	enum desc_idn idn;
 	const char *name;
 	size_t size;
 	void *layout;
@@ -115,6 +116,7 @@ extern struct flag_fields ufs_flags[];
 static struct descriptor_health_layout desc_health_layout;
 
 static struct descriptor desc_health = {
+	QUERY_DESC_IDN_HEALTH,
 	"Health",
 	sizeof desc_health_layout,
 	&desc_health_layout
@@ -462,7 +464,7 @@ static int hmr_progress_read(__u32 *result,
 		fd,
 		bsg_req,
 		bsg_rsp,
-		QUERY_DESC_IDN_HEALTH);
+		desc->idn);
 
 	if (rc)
 		goto out;
