@@ -288,7 +288,7 @@ static inline int hmr_desc_sanity(enum desc_idn idn)
 
 static int hmr_dev_open(const char* path, int *fd)
 {
-	int rc = EHMR_OK;
+	int rc = 0;
 
 	errno = 0;
 
@@ -298,7 +298,22 @@ static int hmr_dev_open(const char* path, int *fd)
 		print_error("hmr: %s: '%s'", strerror(rc), path);
 	}
 
-	return rc == EHMR_OK ? rc : -rc;
+	return rc == 0 ? rc : -rc;
+}
+
+static int hmr_dev_close(const char* path, int fd)
+{
+	int rc;
+
+	errno = 0;
+
+	rc = close(fd);
+	if (rc) {
+		rc = errno;
+		print_error("hmr: %s: '%s'", strerror(rc), path);
+	}
+
+	return rc == 0 ? rc : -rc;
 }
 
 static int hmr_attr_read(__u32 *result,
@@ -1095,20 +1110,20 @@ int do_hmr(struct tool_options *opt)
 	/* Make verifications prior to HMR */
 	rc = hmr_precondition_verify(fd, opt, &refresh_totcount, &stage_passer);
 	if (rc)
-		goto out;
+		goto free;
 
 	/* Set HMR method: force or selective */
 	if (!(stage_passer & HMR_SKIP_METHOD_SET)) {
 		rc = hmr_method_set(fd, opt->hmr_method);
 		if (rc)
-			goto out;
+			goto free;
 	}
 
 	/* Set HMR unit: minimum or full */
 	if (!(stage_passer & HMR_SKIP_UNIT_SET)) {
 		rc = hmr_unit_set(fd, opt->hmr_unit);
 		if (rc)
-			goto out;
+			goto free;
 	}
 
 	/* Do the HMR job */
@@ -1117,12 +1132,15 @@ int do_hmr(struct tool_options *opt)
 
 	rc = (*hmr_job)(fd, opt->hmr_method);
 	if (rc)
-		goto out;
+		goto free;
 
 	/* Verify variables upon completion */
 	rc = hmr_postcondition_verify(fd, refresh_totcount);
 	if (rc)
-		goto out;
+		goto free;
+
+free:
+	rc = hmr_dev_close(opt->path, fd);
 
 out:
 	return rc;
@@ -1153,4 +1171,3 @@ void hmr_help(char *tool_name)
 	printf("\t\t\t %-3d: %-25s\n",
 		HMR_UNIT_FULL, "full, perform a full HMR cycle in one command");
 }
-
