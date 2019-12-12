@@ -21,6 +21,45 @@ struct desc_field_offset {
 	enum field_width width_in_bytes;
 };
 
+enum acc_mode {
+	READ_NRML =	(1 << 0),
+	READ_ONLY =	(1 << 1),
+	WRITE_ONLY =	(1 << 2),
+	WRITE_ONCE =	(1 << 3),
+	WRITE_PRSIST =	(1 << 4),
+	WRITE_VLT =	(1 << 5),
+	SET_ONLY =	(1 << 6),
+	WRITE_PWR =	(1 << 7),
+	MODE_INVALID =	(1 << 8)
+};
+
+enum attr_level {
+	DEV =		(1 << 0),
+	ARRAY =		(1 << 1),
+	LEVEL_INVALID =	(1 << 2)
+};
+
+enum access_type {
+	URD =		(1 << 0),
+	UWRT =		(1 << 1),
+	ACC_INVALID =	(1 << 2)
+};
+
+struct attr_fields {
+	char *name;
+	enum field_width width_in_bytes;
+	enum access_type acc_type;
+	enum acc_mode acc_mode;
+	enum attr_level device_level;
+};
+
+struct flag_fields {
+	char *name;
+	enum access_type acc_type;
+	enum acc_mode acc_mode;
+	enum attr_level device_level;
+};
+
 int do_desc(struct tool_options *opt);
 int do_attributes(struct tool_options *opt);
 int do_flags(struct tool_options *opt);

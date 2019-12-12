@@ -192,51 +192,12 @@ struct desc_field_offset device_health_desc_conf_field_name[] = {
 	{"dRefreshProgress",	0x29, DWORD},
 };
 
-enum acc_mode {
-	READ_NRML =	(1 << 0),
-	READ_ONLY =	(1 << 1),
-	WRITE_ONLY =	(1 << 2),
-	WRITE_ONCE =	(1 << 3),
-	WRITE_PRSIST =	(1 << 4),
-	WRITE_VLT =	(1 << 5),
-	SET_ONLY =	(1 << 6),
-	WRITE_PWR =	(1 << 7),
-	MODE_INVALID =	(1 << 8)
-};
-
-enum attr_level {
-	DEV =		(1 << 0),
-	ARRAY =		(1 << 1),
-	LEVEL_INVALID =	(1 << 2)
-};
-
-enum access_type {
-	URD =		(1 << 0),
-	UWRT =		(1 << 1),
-	ACC_INVALID =	(1 << 2)
-};
-
-struct attr_fields {
-	char *name;
-	enum field_width width_in_bytes;
-	enum access_type acc_type;
-	enum acc_mode acc_mode;
-	enum attr_level device_level;
-};
-
-struct flag_fields {
-	char *name;
-	enum access_type acc_type;
-	enum acc_mode acc_mode;
-	enum attr_level device_level;
-};
-
 struct query_err_res {
 	char *name;
 	__u8 opcode;
 };
 
-static struct attr_fields ufs_attrs[] = {
+struct attr_fields ufs_attrs[] = {
 	{"bBootLunEn", BYTE, (URD|UWRT), (READ_ONLY|WRITE_PRSIST), DEV},
 	{"Reserved", BYTE, (ACC_INVALID), MODE_INVALID, LEVEL_INVALID},
 	{"bCurrentPowerMode", BYTE, URD, READ_ONLY, DEV},
@@ -287,7 +248,7 @@ static struct attr_fields ufs_attrs[] = {
 	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV}
 };
 
-static struct flag_fields ufs_flags[] = {
+struct flag_fields ufs_flags[] = {
 	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
 	{"fDeviceInit", (URD|UWRT), (READ_NRML|SET_ONLY), DEV},
 	{"fPermanentWPEn", (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
