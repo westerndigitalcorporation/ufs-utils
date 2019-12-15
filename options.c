@@ -12,6 +12,7 @@
 #include "unipro.h"
 #include "ufs_ffu.h"
 #include "ufs_rpmb.h"
+#include "ufs_hmr.h"
 
 static int verify_and_set_idn(struct tool_options *options);
 static int verify_read(struct tool_options *options);
@@ -31,6 +32,8 @@ static int verify_and_set_num_block(struct tool_options *options);
 static int verify_lun(struct tool_options *options);
 static int verify_and_set_key_path(struct tool_options *options);
 static int verify_region(struct tool_options *options);
+static int verify_and_set_hmr_method(struct tool_options *options);
+static int verify_and_set_hmr_unit(struct tool_options *options);
 
 #define MAX_ADDRESS 0xFFFF
 
@@ -46,7 +49,7 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		{"local", no_argument, NULL, 'l'}, /* UFS host*/
 		{NULL, 0, NULL, 0}
 	};
-	static char *short_opts = "t:p:w:i:s:O:L:n:k:m:d:rocea";
+	static char *short_opts = "t:p:w:i:s:O:L:n:k:m:d:x:y:rocea";
 
 	while (-1 !=
 	      (curr_opt = getopt_long(opt_cnt, opt_arr, short_opts,
@@ -118,6 +121,12 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 			break;
 		case 'm':
 			rc = verify_region(options);
+			break;
+		case 'x':
+			rc = verify_and_set_hmr_method(options);
+			break;
+		case 'y':
+			rc = verify_and_set_hmr_unit(options);
 			break;
 		default:
 			rc = -EINVAL;
@@ -511,6 +520,62 @@ static int verify_rpmb_arg(struct tool_options *options)
 	return ret;
 }
 
+static int verify_and_set_hmr_method(struct tool_options *options)
+{
+	int ret = ERROR;
+	long result;
+
+	if (options->hmr_method != INVALID) {
+		print_error("Duplicated hmr method option");
+		goto out;
+	}
+
+	ret = str_to_long(optarg, 10, &result);
+	if (ret == ERROR) {
+		print_error("Invalid argument for hmr method: not convertable");
+		goto out;
+	}
+
+	if (result < HMR_METHOD_FORCE || result >= HMR_METHOD_MAX) {
+		print_error("Invalid argument for hmr method: out of range");
+		ret = ERROR;
+		goto out;
+	}
+
+	options->hmr_method = result;
+
+out:
+	return ret;
+}
+
+static int verify_and_set_hmr_unit(struct tool_options *options)
+{
+	int ret = ERROR;
+	long result;
+
+	if (options->hmr_unit != INVALID) {
+		print_error("Duplicated hmr unit option");
+		goto out;
+	}
+
+	ret = str_to_long(optarg, 10, &result);
+	if (ret == ERROR) {
+		print_error("Invalid argument for hmr unit: not convertable");
+		goto out;
+	}
+
+	if (result < HMR_UNIT_MIN || result >= HMR_UNIT_MAX) {
+		print_error("Invalid argument for hmr unit: out of range");
+		ret = ERROR;
+		goto out;
+	}
+
+	options->hmr_unit = result;
+
+out:
+	return ret;
+}
+
 static int verify_arg_and_set_default(struct tool_options *options)
 {
 	if (options->path[0] == '\0') {
@@ -527,6 +592,7 @@ static int verify_arg_and_set_default(struct tool_options *options)
 	}
 	if (options->config_type_inx != ERR_HIST_TYPE &&
 			options->config_type_inx != VENDOR_BUFFER_TYPE &&
+			options->config_type_inx != HMR_TYPE &&
 			options->opr != READ_ALL &&
 			options->idn == INVALID) {
 		print_error("The type idn is missed");
@@ -593,6 +659,14 @@ static int verify_arg_and_set_default(struct tool_options *options)
 	if (options->config_type_inx == RPMB_CMD_TYPE) {
 		if (verify_rpmb_arg(options))
 			goto out;
+	}
+
+	if (options->config_type_inx == HMR_TYPE) {
+		if (options->hmr_method == INVALID)
+			options->hmr_method = HMR_METHOD_SELECTIVE;
+
+		if (options->hmr_unit == INVALID)
+			options->hmr_unit = HMR_UNIT_MIN;
 	}
 
 	return OK;

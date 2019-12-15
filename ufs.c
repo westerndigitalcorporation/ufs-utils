@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
+#include <limits.h>
 
 #include "ufs_cmds.h"
 #include "options.h"
@@ -18,8 +19,9 @@
 #include "ufs_ffu.h"
 #include "ufs_vendor.h"
 #include "ufs_rpmb.h"
+#include "ufs_hmr.h"
 
-#define UFS_BSG_UTIL_VERSION	"1.5"
+#define UFS_BSG_UTIL_VERSION	"1.6"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -40,6 +42,7 @@ static struct tool_command commands[] = {
 	{ do_ffu, "ffu", FFU_TYPE},
 	{ do_vendor, "vendor", VENDOR_BUFFER_TYPE},
 	{ do_rpmb, "rpmb", RPMB_CMD_TYPE},
+	{ do_hmr, "hmr", HMR_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -60,7 +63,8 @@ static void help(char *np)
 {
 	char help_str[256] = {0};
 
-	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor | rpmb>");
+	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor | "
+		"rpmb | hmr>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
@@ -180,10 +184,49 @@ void print_command_help(char *prgname, int config_type)
 	case RPMB_CMD_TYPE:
 		rpmb_help(prgname);
 		break;
+	case HMR_TYPE:
+		hmr_help(prgname);
+		break;
 	default:
 		print_error("Unsupported cmd type");
 		break;
 	}
+}
+
+/*
+ * Wrapper for strtol() function.
+ *
+ * strtol() has advantages over atoi():
+ * 	- has error handling
+ *	- handles not only decimal, but acts accordingly to the 'base' argument
+ *	- accepts strings with "0x" prefix
+ *	- stores address of the first invalid character
+ */
+long str_to_long(char *nptr, int base, long *result)
+{
+	char *endptr;
+
+	if (!nptr || !result)
+		return ERROR;
+
+	/*
+	 * From man:
+	 * Since strtol() can legitimately return 0, LONG_MAX, or LONG_MIN
+	 * on both success and failure, the calling program should set errno to 0
+	 * before the call...
+	 */
+	errno = 0;
+
+	*result = strtol(optarg, &endptr, base);
+
+	if (endptr == nptr ||		/* no conversion performed */
+		*endptr != '\0' ||		/* some chars not converted */
+		*result == LONG_MIN ||	/* underflow occured */
+		*result == LONG_MAX ||	/* overflow occured */
+		errno != 0)				/* any other error */
+			return ERROR;
+
+	return OK;
 }
 
 int main(int ac, char **av)
