@@ -121,15 +121,15 @@ struct ufs_bsg_reply {
 #endif /* SCSI_BSG_UFS_H.*/
 
 struct rpmb_frame {
-	u_int8_t  stuff[196];
-	u_int8_t  key_mac[32];
-	u_int8_t  data[256];
-	u_int8_t  nonce[16];
-	u_int32_t write_counter;
-	u_int16_t addr;
-	u_int16_t block_count;
-	u_int16_t result;
-	u_int16_t req_resp;
+	__u8  stuff[196];
+	__u8  key_mac[32];
+	__u8  data[256];
+	__u8  nonce[16];
+	__u32 write_counter;
+	__u16 addr;
+	__u16 block_count;
+	__u16 result;
+	__u16 req_resp;
 };
 
 #define BSG_REPLY_SZ (sizeof(struct ufs_bsg_reply))
