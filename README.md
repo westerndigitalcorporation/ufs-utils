@@ -1,4 +1,4 @@
-# UFS Tool ver 1.6 #
+# UFS Tool ver 1.7 #
 
 ## Description: ##
 a) Read/Write device flags, attributes & descriptors by
@@ -6,13 +6,17 @@ using the BSG infrastructure in linux kernel (applied to 5.1 rc1)
 Due to the issues in UFS BSG driver, the following patch have to be
 applied:   
    https://lore.kernel.org/patchwork/patch/1076796/   
-   https://patchwork.kernel.org/patch/11011891/   
-b) Error History   
-c) Get/Set UNIPRO attributes   
-d) FFU - Field Firmware Update   
-e) Send Vendor commands based on SCSI WRITE/READ Buffer commands   
-f) RPMB functionality   
-g) HMR - Host Manual Refresh functionality  
+   https://patchwork.kernel.org/patch/11011891/  
+b) Get/Set UNIPRO attributes   
+c) HMR - Host Manual Refresh functionality     
+The following options may work with the SCSI BSG device   
+using sg v4 structure (e.g. /dev/0:0:0:0)    
+or via a SCSI Generic interface using sg v3 struct (e.g. /dev/block/sda)       
+d) Error History     
+e) FFU - Field Firmware Update   
+f) Send Vendor commands based on SCSI WRITE/READ Buffer commands   
+g) RPMB functionality     
+  
 The tool is aligned to the UFS 3.0 spec.   
 
 ## Build: ##

@@ -50,6 +50,7 @@ struct tool_options {
 	int8_t lun;
 	/*RPMB region*/
 	int8_t region;
+	int sg_type;
 	char keypath[PATH_MAX];
 	char path[PATH_MAX];
 };

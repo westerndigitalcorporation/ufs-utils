@@ -106,7 +106,7 @@ static int flash_ffu(int fd, struct tool_options *opt)
 		else
 			write_buf_count = file_size;
 		rc = write_buffer(fd, p_data + buf_offset, BUFFER_FFU_MODE, 0,
-			buf_offset, write_buf_count);
+			buf_offset, write_buf_count, opt->sg_type);
 		if (rc) {
 			print_error("Write error %d:", rc);
 			goto out;
@@ -207,5 +207,6 @@ void ffu_help(char *tool_name)
 	printf("\n\t-s\t Max chunk size in KB alignment to 4KB, "
 		"which FFU file will be split (optional)\n");
 	printf("\n\t-w\t path to FFU file\n");
+	printf("\n\t-g\t sg struct ver - 0: SG_IO_VER4 (default), 1: SG_IO_VER3\n");
 	printf("\n\t-p\t bsg device path for FFU, ufs-bsg for Check FFU status\n");
 }

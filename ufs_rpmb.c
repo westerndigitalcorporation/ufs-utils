@@ -115,7 +115,8 @@ static void print_operation_error(__u16 result)
 }
 
 static int do_rpmb_op(int fd, struct rpmb_frame *frame_in, __u32 in_cnt,
-		struct rpmb_frame *frame_out, __u32 out_cnt, __u8 region)
+		struct rpmb_frame *frame_out, __u32 out_cnt, __u8 region,
+		__u8 sg_type)
 {
 	int ret = -EINVAL;
 	int try_again;
@@ -126,7 +127,7 @@ static int do_rpmb_op(int fd, struct rpmb_frame *frame_in, __u32 in_cnt,
 		goto out;
 	}
 	for (try_again = 0; try_again < MAX_RETRY; try_again++) {
-		ret = scsi_security_out(fd, frame_in, in_cnt, region);
+		ret = scsi_security_out(fd, frame_in, in_cnt, region, sg_type);
 		if (!ret)
 			break;
 		if (try_again < MAX_RETRY - 1)
@@ -143,7 +144,8 @@ static int do_rpmb_op(int fd, struct rpmb_frame *frame_in, __u32 in_cnt,
 		req_resp = (req_resp & SECOND_BYTE_MASK) | RPMB_READ_RESP;
 		frame_in[0].req_resp = htobe16(req_resp);
 		for (try_again = 0; try_again < MAX_RETRY; try_again++) {
-			ret = scsi_security_out(fd,  &frame_in[0], 1, region);
+			ret = scsi_security_out(fd,  &frame_in[0], 1,
+					region, sg_type);
 			if (!ret)
 				break;
 			if (try_again < MAX_RETRY - 1)
@@ -153,7 +155,7 @@ static int do_rpmb_op(int fd, struct rpmb_frame *frame_in, __u32 in_cnt,
 		}
 	}
 	for (try_again = 0; try_again < MAX_RETRY; try_again++) {
-		ret = scsi_security_in(fd, frame_out, out_cnt, region);
+		ret = scsi_security_in(fd, frame_out, out_cnt, region, sg_type);
 		if (!ret) {
 			WRITE_LOG("Result Response addr %d , write count %d\n",
 				  be16toh(frame_out->addr),
@@ -169,7 +171,7 @@ out:
 	return ret;
 }
 
-static int do_key(int fd, const unsigned char *key, __u8 region)
+static int do_key(int fd, const unsigned char *key, __u8 region, __u8 sg_type)
 {
 	int ret = INVALID;
 	struct rpmb_frame frame_in = { 0 };
@@ -183,7 +185,7 @@ static int do_key(int fd, const unsigned char *key, __u8 region)
 	}
 	memcpy(frame_in.key_mac, key, sizeof(frame_in.key_mac));
 	WRITE_LOG("Start : %s\n", __func__);
-	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, region);
+	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, region, sg_type);
 
 	if (!ret) {
 		if (frame_out.result != 0) {
@@ -196,7 +198,7 @@ out:
 	return ret;
 }
 
-static int do_read_counter(int fd, __u32 *cnt, __u8 region,
+static int do_read_counter(int fd, __u32 *cnt, __u8 region, __u8 sg_type,
 		bool prn_cnt)
 {
 	int ret;
@@ -205,7 +207,7 @@ static int do_read_counter(int fd, __u32 *cnt, __u8 region,
 
 	WRITE_LOG("Start : %s %d\n", __func__, region);
 	frame_in.req_resp = htobe16(RPMB_READ_CNT);
-	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, region);
+	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, region, sg_type);
 
 	if (!ret) {
 		if (frame_out.result != 0) {
@@ -221,7 +223,7 @@ static int do_read_counter(int fd, __u32 *cnt, __u8 region,
 }
 
 static int do_read_rpmb(int fd, int out_fd, unsigned char *key,
-	__u16 start_addr, __u16 num_blocks, __u8 region)
+	__u16 start_addr, __u16 num_blocks, __u8 region, __u8 sg_type)
 {
 	int ret = ERROR;
 	int i;
@@ -279,7 +281,7 @@ static int do_read_rpmb(int fd, int out_fd, unsigned char *key,
 		frame_in.addr = htobe16(start_addr);
 		frame_in.block_count = htobe16(num_read_blocks);
 		ret = do_rpmb_op(fd, &frame_in, 1, frames_out,
-				num_read_blocks, region);
+				num_read_blocks, region, sg_type);
 
 		if (ret != 0) {
 			print_error("RPMB operation is failed in addr %d ",
@@ -343,7 +345,8 @@ out:
 }
 
 static int do_write_rpmb(int fd, const unsigned char *key, int input_fd,
-		__u32 cnt, __u16 start_addr, __u16 num_blocks, __u8 region)
+		__u32 cnt, __u16 start_addr, __u16 num_blocks,
+		__u8 region, __u8 sg_type)
 {
 	int ret = ERROR;
 	unsigned char mac[RPMB_MAC_SIZE];
@@ -419,7 +422,7 @@ static int do_write_rpmb(int fd, const unsigned char *key, int input_fd,
 			mac, RPMB_MAC_SIZE);
 
 		ret = do_rpmb_op(fd, frames_in, num_write_blocks,
-				&frame_out, 1, region);
+				&frame_out, 1, region, sg_type);
 		if (ret != 0)
 			goto out;
 
@@ -456,7 +459,7 @@ out:
 }
 
 static int do_read_conf_block(int fd, const unsigned char *key, __u8 lun,
-			int output_fd)
+			int output_fd, __u8 sg_type)
 {
 	int ret = ERROR;
 	ssize_t write_size;
@@ -468,7 +471,7 @@ static int do_read_conf_block(int fd, const unsigned char *key, __u8 lun,
 	frame_in.req_resp  = htobe16(RPMB_SEC_CONF_READ);
 	frame_in.data[0] = lun;
 
-	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, 0);
+	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, 0, sg_type);
 	if (ret != 0) {
 		print_error("Fail to read Secure Write Config Block");
 		goto out;
@@ -501,7 +504,7 @@ out:
 }
 
 static int do_write_conf_block(int fd, const unsigned char *key, int input_fd,
-		__u32 cnt)
+		__u32 cnt, __u8 sg_type)
 {
 	int ret = INVALID;
 	__u8 mac[RPMB_MAC_SIZE];
@@ -526,7 +529,7 @@ static int do_write_conf_block(int fd, const unsigned char *key, int input_fd,
 		key, RPMB_KEY_SIZE, mac, RPMB_MAC_SIZE);
 	memcpy(frame_in.key_mac, mac, RPMB_MAC_SIZE);
 
-	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, 0);
+	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, 0, sg_type);
 	if (ret != 0) {
 		print_error("Fail to write Secure Write Config Block");
 		goto out;
@@ -589,10 +592,10 @@ int do_rpmb(struct tool_options *opt)
 		key_ptr = get_auth_key(opt->keypath);
 		if (key_ptr == NULL)
 			goto out;
-		rc = do_key(fd, key_ptr, opt->region);
+		rc = do_key(fd, key_ptr, opt->region, opt->sg_type);
 	break;
 	case READ_WRITE_COUNTER:
-		rc = do_read_counter(fd, &cnt, opt->region, true);
+		rc = do_read_counter(fd, &cnt, opt->region, opt->sg_type, true);
 		break;
 	case READ_RPMB:
 		output_fd = open(opt->data, O_WRONLY | O_CREAT | O_SYNC,
@@ -608,7 +611,7 @@ int do_rpmb(struct tool_options *opt)
 		}
 
 		rc = do_read_rpmb(fd, output_fd, key_ptr, opt->start_block,
-				  opt->num_block, opt->region);
+				  opt->num_block, opt->region, opt->sg_type);
 		if (!rc)
 			printf("Finish to read RPMB data\n");
 	break;
@@ -622,11 +625,13 @@ int do_rpmb(struct tool_options *opt)
 			perror("Input file open");
 			goto out;
 		}
-		rc = do_read_counter(fd, &cnt, opt->region, false);
+		rc = do_read_counter(fd, &cnt, opt->region, opt->sg_type,
+				false);
 		if (rc)
 			goto out;
 		rc = do_write_rpmb(fd, key_ptr, output_fd, cnt,
-				opt->start_block, opt->num_block, opt->region);
+				opt->start_block, opt->num_block,
+				opt->region, opt->sg_type);
 		if (!rc)
 			printf("Finish to write RPMB data\n");
 	break;
@@ -645,7 +650,8 @@ int do_rpmb(struct tool_options *opt)
 			goto out;
 		}
 
-		rc = do_read_conf_block(fd, key_ptr, lun, output_fd);
+		rc = do_read_conf_block(fd, key_ptr, lun, output_fd,
+				opt->sg_type);
 	break;
 	case WRITE_SEC_RPMB_CONF_BLOCK:
 		key_ptr = get_auth_key(opt->keypath);
@@ -657,11 +663,12 @@ int do_rpmb(struct tool_options *opt)
 			perror("Input file open");
 			goto out;
 		}
-		rc = do_read_counter(fd, &cnt, 0, false);
+		rc = do_read_counter(fd, &cnt, 0, opt->sg_type, false);
 		if (rc)
 			goto out;
 
-		rc = do_write_conf_block(fd, key_ptr, output_fd, cnt);
+		rc = do_write_conf_block(fd, key_ptr, output_fd, cnt,
+				opt->sg_type);
 	break;
 	default:
 		print_error("Unsupported RPMB cmd %d", opt->idn);
@@ -700,6 +707,7 @@ void rpmb_help(char *tool_name)
 		"for Secure Write Config Read\n");
 	printf("\n\t-w\t path to data file\n");
 	printf("\n\t-m\t RPMB region.\n");
+	printf("\n\t-g\t sg struct ver - 0: SG_IO_VER4 (default), 1: SG_IO_VER3\n");
 	printf("\n\tExample - Read 16MB of data from RPMB LUN started "
 		"from address 0 to output file\n"
 		"\t\t  %s rpmb -t 2 -p /dev/0:0:0:49476 -s 0 -n 65536 -w output_file\n",

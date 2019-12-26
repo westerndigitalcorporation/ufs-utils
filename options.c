@@ -34,6 +34,7 @@ static int verify_and_set_key_path(struct tool_options *options);
 static int verify_region(struct tool_options *options);
 static int verify_and_set_hmr_method(struct tool_options *options);
 static int verify_and_set_hmr_unit(struct tool_options *options);
+static int verify_sg_struct(struct tool_options *options);
 
 #define MAX_ADDRESS 0xFFFF
 
@@ -49,7 +50,7 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		{"local", no_argument, NULL, 'l'}, /* UFS host*/
 		{NULL, 0, NULL, 0}
 	};
-	static char *short_opts = "t:p:w:i:s:O:L:n:k:m:d:x:y:rocea";
+	static char *short_opts = "t:p:w:i:s:O:L:n:k:m:d:x:y:g:rocea";
 
 	while (-1 !=
 	      (curr_opt = getopt_long(opt_cnt, opt_arr, short_opts,
@@ -127,6 +128,9 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 			break;
 		case 'y':
 			rc = verify_and_set_hmr_unit(options);
+			break;
+		case 'g':
+			rc = verify_sg_struct(options);
 			break;
 		default:
 			rc = -EINVAL;
@@ -418,6 +422,19 @@ static int verify_and_set_key_path(struct tool_options *options)
 
 out:
 	return ERROR;
+}
+
+static int verify_sg_struct(struct tool_options *options)
+{
+	int8_t sg_type;
+
+	if ((0 == (sg_type = atoi(optarg)) && 0 != (strcmp(optarg, "0"))) ||
+		((sg_type != SG3_TYPE) && (sg_type != SG4_TYPE))) {
+			print_error("Invalid SG struct");
+			return ERROR;
+	} else
+		options->sg_type = sg_type;
+	return OK;
 }
 
 static int verify_lun(struct tool_options *options)

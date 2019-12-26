@@ -80,7 +80,7 @@ static int write_data(struct tool_options *opt, int dev_fd, void *p_data)
 		goto out;
 	}
 	rc = write_buffer(dev_fd, p_data, BUFFER_VENDOR_MODE, opt->index,
-			  opt->offset, opt->len);
+			  opt->offset, opt->len, opt->sg_type);
 	if (!rc)
 		printf("The vendor buffer was written\n");
 out:
@@ -93,7 +93,7 @@ static int read_data(struct tool_options *opt, int dev_fd, void *p_data)
 	int rc = INVALID;
 
 	rc = read_buffer(dev_fd, p_data, BUFFER_VENDOR_MODE, opt->index,
-			 opt->offset, opt->len);
+			 opt->offset, opt->len, opt->sg_type);
 	if (!rc) {
 		write_file("read_vendor_buffer.dat", p_data, opt->len);
 		printf("read_vendor_buffer.dat created\n");
@@ -112,6 +112,7 @@ void vendor_help(char *tool_name)
 	printf("\n\t-w\tInput file path for write buffer vendor command\n");
 	printf("\n\t-L\tData buffer length, up to 512 Bytes[default value 512B]\n");
 	printf("\n\t-i\tBuffer ID\n");
+	printf("\n\t-g\t sg struct ver - 0: SG_IO_VER4 (default), 1: SG_IO_VER3\n");
 	printf("\n\t-O\tBuffer Offset\n");
 	printf("\n\t-p\tDevice path\n");
 }
