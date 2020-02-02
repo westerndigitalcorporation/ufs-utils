@@ -17,6 +17,11 @@
 */
 #define MAX_IOCTL_BUF_SIZE (256L * 1024)
 
+enum sg_struct_type {
+	SG4_TYPE = 0,
+	SG3_TYPE
+};
+
 /* Flag idn for Query Requests*/
 enum flag_idn {
 	QUERY_FLAG_IDN_RESERVED1		= 0x00,

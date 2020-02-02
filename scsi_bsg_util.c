@@ -43,8 +43,8 @@ static const char *const snstext[] = {
 				  do not agree */
 };
 
-static int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf,
-		__u8 cmd_len, __u32 byte_cnt, int dir);
+static int send_scsi_cmd(int fd, const __u8 *cdb, void *buf,
+		__u8 cmd_len, __u32 byte_cnt, int dir, __u8 sg_type);
 
 /* Get sense key string or NULL if not available */
 static const char *sense_key_string(__u8 key)
@@ -68,7 +68,6 @@ static int write_file_with_counter(const char *pattern, const void *buffer,
 #ifdef DEBUG
 	static int counter = 1;
 	char filename[1024] = {0};
-
 	sprintf(filename, pattern, counter++);
 	return write_file(filename, buffer, length);
 #else
@@ -77,7 +76,7 @@ static int write_file_with_counter(const char *pattern, const void *buffer,
 }
 
 int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
-		int byte_count)
+		int byte_count, __u8 sg_type)
 {
 	int ret;
 	unsigned char write_buf_cmd [WRITE_BUF_CMDLEN] = {
@@ -93,8 +92,9 @@ int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
 	put_unaligned_be24((uint32_t)buf_offset, write_buf_cmd + 3);
 	put_unaligned_be24(byte_count, write_buf_cmd + 6);
 	WRITE_LOG("Start : %s mode %d , buf_id %d", __func__, mode, buf_id);
-	ret = send_bsg_scsi_cmd(fd, write_buf_cmd, buf,
-			WRITE_BUF_CMDLEN, byte_count, SG_DXFER_TO_DEV);
+	ret = send_scsi_cmd(fd, write_buf_cmd, buf,
+			WRITE_BUF_CMDLEN, byte_count,
+			SG_DXFER_TO_DEV, sg_type);
 	if (ret < 0) {
 		print_error("SG_IO WRITE BUFFER data error ret %d", ret);
 	}
@@ -102,7 +102,7 @@ int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
 }
 
 int read_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id,
-	__u32 buf_offset, int byte_count)
+	__u32 buf_offset, int byte_count, __u8 sg_type)
 {
 
 	int ret;
@@ -119,8 +119,9 @@ int read_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id,
 	put_unaligned_be24((__u32)buf_offset, read_buf_cmd + 3);
 	put_unaligned_be24((__u32)byte_count, read_buf_cmd + 6);
 	WRITE_LOG("Start : %s\n", __func__);
-	ret = send_bsg_scsi_cmd(fd, read_buf_cmd, buf,
-			READ_BUF_CMDLEN, byte_count, SG_DXFER_FROM_DEV);
+	ret = send_scsi_cmd(fd, read_buf_cmd, buf,
+			READ_BUF_CMDLEN, byte_count,
+			SG_DXFER_FROM_DEV, sg_type);
 
 	if (ret < 0) {
 		print_error("SG_IO READ BUFFER data error ret %d", ret);
@@ -129,7 +130,8 @@ int read_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id,
 	return ret;
 }
 
-int scsi_security_in(int fd, struct rpmb_frame *frame, int cnt, __u8 region)
+int scsi_security_in(int fd, struct rpmb_frame *frame, int cnt, __u8 region,
+		__u8 sg_type)
 {
 	int ret;
 	__u32 trans_len = cnt * sizeof(struct rpmb_frame);
@@ -147,14 +149,14 @@ int scsi_security_in(int fd, struct rpmb_frame *frame, int cnt, __u8 region)
 	*(__u16 *)(sec_in_cmd + SEC_SPEC_OFFSET) = htobe16(sec_spec);
 	*(__u32 *)(sec_in_cmd + SEC_TRANS_LEN_OFFSET) = htobe32(trans_len);
 
-	ret = send_bsg_scsi_cmd(fd, sec_in_cmd, frame, SEC_PROTOCOL_CMD_SIZE,
-		trans_len, SG_DXFER_FROM_DEV);
+	ret = send_scsi_cmd(fd, sec_in_cmd, frame, SEC_PROTOCOL_CMD_SIZE,
+		trans_len, SG_DXFER_FROM_DEV, sg_type);
 
 	return ret;
 }
 
 int scsi_security_out(int fd, struct rpmb_frame *frame_in,
-		unsigned int cnt, __u8 region)
+		unsigned int cnt, __u8 region, __u8 sg_type)
 {
 	int ret;
 	__u32 trans_len = cnt * sizeof(struct rpmb_frame);
@@ -169,8 +171,9 @@ int scsi_security_out(int fd, struct rpmb_frame *frame_in,
 	}
 	*(__u16 *)(sec_out_cmd + SEC_SPEC_OFFSET) = htobe16(sec_spec);
 	*(__u32 *)(sec_out_cmd + SEC_TRANS_LEN_OFFSET) = htobe32(trans_len);
-	ret = send_bsg_scsi_cmd(fd, sec_out_cmd, frame_in,
-			SEC_PROTOCOL_CMD_SIZE, trans_len, SG_DXFER_TO_DEV);
+	ret = send_scsi_cmd(fd, sec_out_cmd, frame_in,
+			SEC_PROTOCOL_CMD_SIZE, trans_len,
+			SG_DXFER_TO_DEV, sg_type);
 
 	return ret;
 }
@@ -198,7 +201,7 @@ void prepare_upiu(struct ufs_bsg_request *bsg_req,
 }
 
 /**
- * send_bsg_scsi_cmd - Utility function for SCSI command sending
+ * send_scsi_cmd - Utility function for SCSI command sending
  * @fd: bsg driver file descriptor
  * @cdb: pointer to SCSI cmd cdb buffer
  * @buf: pointer to the SCSI cmd data buffer
@@ -207,48 +210,76 @@ void prepare_upiu(struct ufs_bsg_request *bsg_req,
  * @dir: The cmd direction
  *
  **/
-static int send_bsg_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
-		__u32 byte_cnt, int dir)
+static int send_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
+		__u32 byte_cnt, int dir, __u8 sg_type)
 {
 	int ret;
+	void *sg_struct;
 	struct sg_io_v4 io_hdr_v4 = { 0 };
-	unsigned char sense_buffer[SENSE_BUFF_LEN] = { 0 };
+	struct sg_io_hdr io_hdr_v3 = { 0 };
+	__u8 sense_buffer[SENSE_BUFF_LEN] = { 0 };
 
 	if ((byte_cnt && buf == NULL) || cdb == NULL) {
-		print_error("send_bsg_scsi_cmd: wrong parameters");
+		print_error("send_scsi_cmd: wrong parameters");
 		return -EINVAL;
 	}
 
-	io_hdr_v4.guard = 'Q';
-	io_hdr_v4.protocol = BSG_PROTOCOL_SCSI;
-	io_hdr_v4.subprotocol = BSG_SUB_PROTOCOL_SCSI_CMD;
-	io_hdr_v4.response = (__u64)sense_buffer;
-	io_hdr_v4.max_response_len = SENSE_BUFF_LEN;
-	io_hdr_v4.request_len = cmd_len;
-	if (dir == SG_DXFER_FROM_DEV) {
-		io_hdr_v4.din_xfer_len = (__u32)byte_cnt;
-		io_hdr_v4.din_xferp = (__u64)buf;
-	} else {
-		io_hdr_v4.dout_xfer_len = (__u32)byte_cnt;
-		io_hdr_v4.dout_xferp = (__u64)buf;
+	if (sg_type == SG4_TYPE) {
+		io_hdr_v4.guard = 'Q';
+		io_hdr_v4.protocol = BSG_PROTOCOL_SCSI;
+		io_hdr_v4.subprotocol = BSG_SUB_PROTOCOL_SCSI_CMD;
+		io_hdr_v4.response = (__u64)sense_buffer;
+		io_hdr_v4.max_response_len = SENSE_BUFF_LEN;
+		io_hdr_v4.request_len = cmd_len;
+		if (dir == SG_DXFER_FROM_DEV) {
+			io_hdr_v4.din_xfer_len = (__u32)byte_cnt;
+			io_hdr_v4.din_xferp = (__u64)buf;
+		} else {
+			io_hdr_v4.dout_xfer_len = (__u32)byte_cnt;
+			io_hdr_v4.dout_xferp = (__u64)buf;
+		}
+			io_hdr_v4.request = (__u64)cdb;
+		sg_struct = &io_hdr_v4;
 	}
-	io_hdr_v4.request = (__u64)cdb;
-
-	WRITE_LOG("Start : %s cmd = %x len %d \n", __func__, cdb[0], byte_cnt);
+	else {
+		io_hdr_v3.interface_id = 'S';
+		io_hdr_v3.cmd_len = cmd_len;
+		io_hdr_v3.mx_sb_len = SENSE_BUFF_LEN;
+		io_hdr_v3.dxfer_direction = dir;
+		io_hdr_v3.dxfer_len = byte_cnt;
+		io_hdr_v3.dxferp = buf;
+		/* pointer to command buf (rbufCmdBlk) */
+		io_hdr_v3.cmdp = (unsigned char *)cdb;
+		io_hdr_v3.sbp = sense_buffer;
+		io_hdr_v3.timeout = DEF_TIMEOUT_MSEC;
+		sg_struct = &io_hdr_v3;
+	}
+	WRITE_LOG("Start : %s cmd = %x len %d sg_type %d\n", __func__, cdb[0],
+			byte_cnt, sg_type);
 
 	write_file_with_counter("scsi_cmd_cdb_%d.bin",
 			cdb, cmd_len);
 
-
-	while (((ret = ioctl(fd, SG_IO, &io_hdr_v4)) < 0) &&
+	while (((ret = ioctl(fd, SG_IO, sg_struct)) < 0) &&
 		((errno == EINTR) || (errno == EAGAIN)));
-	if (io_hdr_v4.info != 0) {
-		print_error("Command fail with status %x , senseKey %s",
-			io_hdr_v4.info,
-			sense_key_string(sense_buffer[2]));
-
-		ret = -EINVAL;
+	if (sg_type == SG4_TYPE) {
+		if (io_hdr_v4.info != 0) {
+			print_error("Command fail with status %x , senseKey %s",
+				io_hdr_v4.info,
+				sense_key_string(sense_buffer[2]));
+			ret = -EINVAL;
+		}
 	}
+	else {
+		if (io_hdr_v3.status) {
+			print_error("Command fail with status %x , senseKey %s",
+				io_hdr_v3.status,
+				sense_key_string(sense_buffer[2]));
+			ret = -EINVAL;
+		}
+
+	}
+
 	return ret;
 }
 

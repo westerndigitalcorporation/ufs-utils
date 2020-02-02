@@ -21,7 +21,7 @@
 #include "ufs_rpmb.h"
 #include "ufs_hmr.h"
 
-#define UFS_BSG_UTIL_VERSION	"1.6"
+#define UFS_BSG_UTIL_VERSION	"1.7"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -78,6 +78,7 @@ static void initialized_options(struct tool_options *options)
 	options->path[0] = '\0';
 	options->keypath[0] = '\0';
 	options->data = NULL;
+	options->sg_type = SG4_TYPE;
 }
 
 static int parse_args(int argc, char **argv, command_function *func,

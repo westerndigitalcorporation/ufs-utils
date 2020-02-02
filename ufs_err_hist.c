@@ -72,7 +72,7 @@ static inline int write_single_fad(const int file, const void *buffer, int sz)
 }
 
 static int log_ehs_buffer(int fd, int file, __u8 *buf, __u8 buf_id,
-			  __u32 len)
+			  __u32 len, __u8 sg_type)
 {
 	int rc = -EINVAL;
 	__u32 sent = 0;
@@ -85,7 +85,8 @@ static int log_ehs_buffer(int fd, int file, __u8 *buf, __u8 buf_id,
 			(len - sent >= MAX_IOCTL_BUF_SIZE) ? MAX_IOCTL_BUF_SIZE :
 							(len - sent);
 
-		rc = read_buffer(fd, buf, BUFFER_EHS_MODE, buf_id, ofst, sz);
+		rc = read_buffer(fd, buf, BUFFER_EHS_MODE, buf_id, ofst, sz,
+				sg_type);
 		if (rc) {
 			print_error("read_buffer buff_id 0x%x fad %d",
 				buf_id, i);
@@ -109,7 +110,7 @@ out:
 }
 
 static int log_error_history(int fd, struct ehs_directory_entry *entries,
-			__u8 buffers_cnt)
+			__u8 buffers_cnt, __u8 sg_type)
 {
 	int file;
 	__u8 *buf = NULL;
@@ -148,7 +149,7 @@ static int log_error_history(int fd, struct ehs_directory_entry *entries,
 			goto out;
 		}
 
-		rc = log_ehs_buffer(fd, file, buf, buf_id, len);
+		rc = log_ehs_buffer(fd, file, buf, buf_id, len, sg_type);
 		if (rc) {
 			print_error("log_ehs_buffer buffer id 0x%x", buf_id);
 			goto out;
@@ -213,7 +214,7 @@ int do_err_hist(struct tool_options *opt)
 	}
 
 	rc = read_buffer(fd, ehs_buf, BUFFER_EHS_MODE, 0, 0,
-			EHS_DIR_ALLOC_LEN);
+			EHS_DIR_ALLOC_LEN, opt->sg_type);
 	if (rc)
 		goto out;
 
@@ -230,7 +231,8 @@ int do_err_hist(struct tool_options *opt)
 		goto out;
 
 	printf("retrieving error history, this may take a while\n\n");
-	rc = log_error_history(fd, ehs_dir->entries, ehs_buffer_cnt);
+	rc = log_error_history(fd, ehs_dir->entries, ehs_buffer_cnt,
+			opt->sg_type);
 	if (rc)
 		goto out;
 
@@ -248,5 +250,6 @@ void err_hist_help(char *tool_name)
 {
 	printf("\n Error history command usage:\n");
 	printf("\n\t%s err_hist [-p] <path to device> \n", tool_name);
+	printf("\n\t-g\tsg struct ver - 0: SG_IO_VER4 (default), 1: SG_IO_VER3\n");
 	printf("\n\t-p\tPath to the bsg device\n");
 }
