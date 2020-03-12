@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <endian.h>
 #include <errno.h>
 #include <stdint.h>
 
