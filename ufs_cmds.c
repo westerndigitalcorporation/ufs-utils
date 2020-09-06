@@ -56,7 +56,21 @@ struct desc_field_offset device_desc_field_name[] = {
 	{"bNumSecureWPArea",		0x24, BYTE},
 	{"dPSAMaxDataSize",		0x25, DWORD},
 	{"bPSAStateTimeout",		0x29, BYTE},
-	{"iProductRevisionLevel",	0x2A, BYTE}
+	{"iProductRevisionLevel",	0x2A, BYTE},
+	{"Reserved1",			0x2B, BYTE},
+	{"Reserved2",			0x2C, DWORD},
+	{"Reserved3",			0x30, DWORD},
+	{"Reserved4",			0x34, DWORD},
+	{"Reserved5",			0x38, DWORD},
+	{"Reserved6",			0x3c, DWORD},
+	{"wHPBVersion",			0x40, WORD},
+	{"bHPBControl",			0x42, BYTE},
+	{"Reserved8",			0x43, DWORD},
+	{"Reserved9",			0x47, DDWORD},
+	{"dExtendedUFSFeaturesSupport",	0x4F, DWORD},
+	{"bWriteBoosterBufferPreserveUserSpaceEn", 0x53, BYTE},
+	{"bWriteBoosterBufferType",	0x54, BYTE},
+	{"dNumSharedWriteBoosterBufferAllocUnits", 0x55, DWORD}
 };
 
 struct desc_field_offset device_config_desc_field_name[] = {
@@ -70,10 +84,14 @@ struct desc_field_offset device_config_desc_field_name[] = {
 	{"bSecureRemovalType",	0x07, BYTE},
 	{"bInitActiveICCLevel",	0x08, BYTE},
 	{"wPeriodicRTCUpdate",	0x09, WORD},
+	{"bHPBControl",		0x0B, BYTE},
 	{"bRPMBRegionEnable",	0x0C, BYTE},
 	{"bRPMBRegion1Size",	0x0D, BYTE},
 	{"bRPMBRegion2Size",	0x0E, BYTE},
 	{"bRPMBRegion3Size",	0x0F, BYTE},
+	{"bWriteBoosterBufferPreserveUserSpaceEn", 0x10, BYTE},
+	{"bWriteBoosterBufferType",	0x11, BYTE},
+	{"dNumSharedWriteBoosterBufferAllocUnits", 0x12, DWORD}
 };
 
 struct desc_field_offset device_config_unit_desc_field_name[] = {
@@ -85,7 +103,11 @@ struct desc_field_offset device_config_unit_desc_field_name[] = {
 	{"bDataReliability",		0x08, BYTE},
 	{"bLogicalBlockSize",		0x09, BYTE},
 	{"bProvisioningType",		0x0A, BYTE},
-	{"wContextCapabilities",	0x0B, WORD}
+	{"wContextCapabilities",	0x0B, WORD},
+	{"wLUMaxActiveHPBRegions",	0x10, WORD},
+	{"wHPBPinnedRegionStartIdx",	0x12, WORD},
+	{"wNumHPBPinnedRegions",	0x14, WORD},
+	{"dLUNumWriteBoosterBufferAllocUnits", 0x16, DWORD}
 };
 
 struct desc_field_offset device_geo_desc_conf_field_name[] = {
@@ -121,7 +143,17 @@ struct desc_field_offset device_geo_desc_conf_field_name[] = {
 	{"wEnhanced3CapAdjFac",			0x3C, WORD},
 	{"dEnhanced4MaxNAllocU",		0x3E, DWORD},
 	{"wEnhanced4CapAdjFac",			0X42, WORD},
-	{"dOptimalLogicalBlockSize",		0X44, DWORD}
+	{"dOptimalLogicalBlockSize",		0X44, DWORD},
+	{"bHPBRegionSize",			0X48, BYTE},
+	{"bHPBNumberLU",			0X49, BYTE},
+	{"bHPBSubRegionSize",			0X4a, BYTE},
+	{"wDeviceMaxActiveHPBRegions",		0X4b, WORD},
+	{"Reserved",				0X4d, WORD},
+	{"dWriteBoosterBufferMaxNAllocUnits",	0X4f, DWORD},
+	{"bDeviceMaxWriteBoosterLUs",		0X53, BYTE},
+	{"bWriteBoosterBufferCapAdjFac",	0X54, BYTE},
+	{"bSupportedWriteBoosterBufferUserSpaceReductionTypes", 0X55, BYTE},
+	{"bSupportedWriteBoosterBufferTypes", 0X56, BYTE}
 };
 
 struct desc_field_offset device_interconnect_desc_conf_field_name[] = {
@@ -148,7 +180,11 @@ struct desc_field_offset device_unit_desc_field_name[] = {
 	{"bProvisioningType",		0x17, BYTE},
 	{"qPhyMemResourceCount",	0x18, DDWORD},
 	{"wContextCapabilities",	0x20, WORD},
-	{"bLargeUnitGranularity_M1",	0x22, BYTE}
+	{"bLargeUnitGranularity_M1",	0x22, BYTE},
+	{"wLUMaxActiveHPBRegions",	0x23, WORD},
+	{"wHPBPinnedRegionStartIdx",	0x25, WORD},
+	{"wNumHPBPinnedRegions",	0x27, WORD},
+	{"dLUNumWriteBoosterBufferAllocUnits",	0x29, DWORD}
 };
 
 struct desc_field_offset device_unit_rpmb_desc_field_name[] = {
@@ -200,7 +236,7 @@ struct query_err_res {
 
 struct attr_fields ufs_attrs[] = {
 	{"bBootLunEn", BYTE, (URD|UWRT), (READ_ONLY|WRITE_PRSIST), DEV},
-	{"Reserved", BYTE, (ACC_INVALID), MODE_INVALID, LEVEL_INVALID},
+	{"bMAX_DATA_SIZE_FOR_HPB_SINGLE_CMD", BYTE, URD, READ_ONLY, DEV},
 	{"bCurrentPowerMode", BYTE, URD, READ_ONLY, DEV},
 	{"bActiveICCLevel", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bOutOfOrderDataEn", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
@@ -225,7 +261,12 @@ struct attr_fields ufs_attrs[] = {
 	{"bRefClkGatingWaitTime", BYTE, URD, READ_ONLY, DEV},
 	{"bDeviceCaseRoughTemperaure", BYTE, URD, READ_ONLY, DEV},
 	{"bDeviceTooHighTempBoundary", BYTE, URD, READ_ONLY, DEV},
-	{"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
+/*1A*/  {"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
+/*1B*/  {"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
+/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV},
+/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV},
+/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV},
+/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -238,12 +279,7 @@ struct attr_fields ufs_attrs[] = {
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
+/*2C*/  {"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
 	{"bRefreshFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bRefreshUnit", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV}
@@ -262,6 +298,13 @@ struct flag_fields ufs_flags[] = {
 	{"fBusyRTC", URD, READ_ONLY, DEV},
 	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
 	{"fPermanentlyDisableFw", (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
+	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+/*D*/	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+/*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*F*/	{"fWriteBoosterBufferFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*10h*/ {"fWriteBoosterBufferFlushDuringHibernate", (URD|UWRT),
+		(READ_NRML|WRITE_VLT), DEV},
+/*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV}
 };
 
 static struct query_err_res query_err_status[] = {
