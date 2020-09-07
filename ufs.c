@@ -158,6 +158,17 @@ void print_error(const char *msg, ...)
 	printf("\n");
 }
 
+void print_warn(const char *msg, ...)
+{
+	va_list args;
+
+	va_start(args, msg);
+	fprintf(stderr, "\nWARN: ");
+	vfprintf(stderr, msg, args);
+	va_end(args);
+	printf("\n");
+}
+
 void print_command_help(char *prgname, int config_type)
 {
 	switch (config_type) {

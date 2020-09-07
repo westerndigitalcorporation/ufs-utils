@@ -164,6 +164,7 @@ enum {
 
 int write_file(const char *name, const void *buffer, int length);
 void print_error(const char *msg, ...);
+void print_warn(const char *msg, ...);
 long str_to_long(char *nptr, int base, long *result);
 #ifdef DEBUG
 	#define WRITE_LOG(format, ...) fprintf(stderr, format"\n", __VA_ARGS__)
