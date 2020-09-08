@@ -12,6 +12,7 @@
 #include <endian.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "ufs.h"
 #include "ufs_cmds.h"
@@ -325,6 +326,20 @@ static struct query_err_res query_err_status[] = {
 	{"Invalid OPCODE", 0xFE},
 	{"General failure", 0xFF}
 };
+
+static const char *const desc_text[] = {
+	"Device",
+	"Config",
+	"Unit",
+	"RFU0",
+	"Interconnect",
+	"String",
+	"RFU1",
+	"Geometry",
+	"Power",
+	"Health"
+};
+
 int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 		struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 		__u16 desc_buf_len, __u8 *data_buf);
@@ -914,7 +929,6 @@ int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 		query_response_error(res_code, idn);
 		rc = ERROR;
 	}
-
 out:
 	return rc;
 }
@@ -929,14 +943,64 @@ static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			0, desc_buf_len, 0, data_buf);
 }
 
+static void check_read_desc_size(__u8 idn, __u8 *data_buf)
+{
+	bool unoff = false;
+
+	switch (idn) {
+	case QUERY_DESC_IDN_DEVICE:
+		if ((data_buf[0] != QUERY_DESC_DEVICE_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_DEVICE_MAX_SIZE_3_0))
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_CONFIGURAION:
+		if ((data_buf[0] != QUERY_DESC_CONFIGURAION_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_CONFIGURAION_MAX_SIZE_3_0))
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_UNIT:
+		if ((data_buf[0] != QUERY_DESC_UNIT_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_UNIT_MAX_SIZE_3_0))
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_INTERCONNECT:
+		if (data_buf[0] != QUERY_DESC_INTERCONNECT_MAX_SIZE)
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_GEOMETRY:
+		if ((data_buf[0] != QUERY_DESC_GEOMETRY_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_GEOMETRY_MAX_SIZE_3_0))
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_POWER:
+		if (data_buf[0] != QUERY_DESC_POWER_MAX_SIZE)
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_HEALTH:
+		if (data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE)
+			unoff = true;
+	break;
+	}
+
+	if (unoff)
+		print_warn("Unofficial %s desc size, len = 0x%x",
+			(char *)desc_text[idn], data_buf[0]);
+}
+
 int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 			__u16 desc_buf_len, __u8 *data_buf)
 {
-	return do_query_rq(fd, bsg_req, bsg_rsp,
+	int rc;
+
+	rc = do_query_rq(fd, bsg_req, bsg_rsp,
 			UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 			UPIU_QUERY_OPCODE_READ_DESC, idn, index, 0,
 			0, desc_buf_len, data_buf);
+	if (!rc)
+		check_read_desc_size(idn, data_buf);
+
+	return rc;
 }
 
 int do_attributes(struct tool_options *opt)
