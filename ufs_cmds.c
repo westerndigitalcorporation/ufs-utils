@@ -570,10 +570,9 @@ int do_device_desc(int fd, __u8 *desc_buff)
 	}
 	if (!desc_buff)
 		print_descriptors("Device Descriptor", data_buf,
-				device_desc_field_name,
-				ARRAY_SIZE(device_desc_field_name));
+				device_desc_field_name, data_buf[0]);
 	else
-		memcpy(desc_buff, data_buf, QUERY_DESC_DEVICE_MAX_SIZE);
+		memcpy(desc_buff, data_buf, data_buf[0]);
 
 out:
 	return rc;
@@ -595,12 +594,10 @@ static int do_unit_desc(int fd, __u8 lun)
 
 	if (lun == 0xc4)
 		print_descriptors("RPMB LUN Descriptor", data_buf,
-				device_unit_rpmb_desc_field_name,
-				ARRAY_SIZE(device_unit_rpmb_desc_field_name));
+				device_unit_rpmb_desc_field_name, data_buf[0]);
 	else
 		print_descriptors("LUN Descriptor", data_buf,
-				device_unit_desc_field_name,
-				ARRAY_SIZE(device_unit_desc_field_name));
+				device_unit_desc_field_name, data_buf[0]);
 
 
 out:
@@ -623,8 +620,7 @@ static int do_interconnect_desc(int fd)
 	}
 
 	print_descriptors("Interconnect Descriptor", data_buf,
-			device_interconnect_desc_conf_field_name,
-			ARRAY_SIZE(device_interconnect_desc_conf_field_name));
+			device_interconnect_desc_conf_field_name, data_buf[0]);
 
 out:
 	return ret;
@@ -646,8 +642,7 @@ static int do_geo_desc(int fd)
 	}
 
 	print_descriptors("Geometry Descriptor", data_buf,
-			device_geo_desc_conf_field_name,
-			ARRAY_SIZE(device_geo_desc_conf_field_name));
+			device_geo_desc_conf_field_name, data_buf[0]);
 
 out:
 	return ret;
@@ -700,8 +695,7 @@ static int do_health_desc(int fd)
 	}
 
 	print_descriptors("Device Health Descriptor:", data_buf,
-			device_health_desc_conf_field_name,
-			ARRAY_SIZE(device_health_desc_conf_field_name));
+			device_health_desc_conf_field_name, data_buf[0]);
 
 out:
 	return ret;
