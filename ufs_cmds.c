@@ -1006,7 +1006,8 @@ static void check_read_desc_size(__u8 idn, __u8 *data_buf)
 			unoff = true;
 		break;
 	case QUERY_DESC_IDN_HEALTH:
-		if (data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE)
+		if ((data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE_2_1))
 			unoff = true;
 	break;
 	}
