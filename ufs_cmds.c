@@ -829,7 +829,7 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 			offset = offset  + lun_off;
 		}
 		sprintf(output_file, filename_header, index);
-		data_fd = open(output_file, O_WRONLY | O_CREAT,
+		data_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC,
 				S_IRUSR | S_IWUSR);
 		if (data_fd < 0) {
 			perror("can't open output file");
