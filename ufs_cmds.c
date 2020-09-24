@@ -385,6 +385,21 @@ static void print_power_desc_icc(__u8 *desc_buf, int vccIndex)
 	printf("\n");
 }
 
+static void print_vendor_info(__u8 *desc_buf, int len)
+{
+	int i;
+
+	if (!desc_buf)
+		return;
+
+	for (i = 0 ; i < len; i++) {
+		if (!(i%16))
+			printf("\t\n");
+		printf("0x%02x ", desc_buf[i]);
+	}
+	printf("\n");
+}
+
 void print_descriptors(char *desc_str, __u8 *desc_buf,
 		struct desc_field_offset *desc_array, int arr_size)
 {
@@ -414,11 +429,21 @@ void print_descriptors(char *desc_str, __u8 *desc_buf,
 				be64toh(*(__u64 *)&desc_buf[tmp->offset]));
 		} else if ((tmp->width_in_bytes > DDWORD) &&
 				tmp->width_in_bytes < STR_BUF_LEN) {
-			memset(str_buf, 0, STR_BUF_LEN);
-			memcpy(str_buf, &desc_buf[tmp->offset],
-				tmp->width_in_bytes);
-			printf("%s [Byte offset 0x%x]: %s = %s\n", desc_str,
-				tmp->offset, tmp->name, str_buf);
+			if (!strcmp(tmp->name, "VendorPropInfo")) {
+				printf("%s [Byte offset 0x%x]: %s =\n",
+					desc_str,
+					tmp->offset,
+					tmp->name);
+				print_vendor_info(&desc_buf[tmp->offset],
+						  tmp->width_in_bytes);
+			} else {
+				memset(str_buf, 0, STR_BUF_LEN);
+				memcpy(str_buf, &desc_buf[tmp->offset],
+					tmp->width_in_bytes);
+				printf("%s [Byte offset 0x%x]: %s = %s\n",
+					desc_str,
+					tmp->offset, tmp->name, str_buf);
+			}
 		} else {
 			printf("%s [Byte offset 0x%x]: %s Wrong Width = %d",
 				desc_str, tmp->offset, tmp->name,
