@@ -871,7 +871,9 @@ int do_desc(struct tool_options *opt)
 	if (opt->opr == READ_ALL) {
 		if (do_device_desc(fd, NULL) || do_unit_desc(fd, 0) ||
 			do_interconnect_desc(fd) || do_geo_desc(fd) ||
-			do_power_desc(fd) || do_health_desc(fd))
+			do_power_desc(fd) ||
+			do_health_desc(fd) ||
+			do_conf_desc(fd, READ, 0, NULL))
 			rc = ERROR;
 		goto out;
 	}
