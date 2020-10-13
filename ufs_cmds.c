@@ -22,6 +22,13 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define ATTR_RSRV() "Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID
 
+#define CONFIG_HEADER_OFFSET 0x16
+#define CONFIG_LUN_OFFSET 0x1A
+
+/* Config desc. offsets for UFS 2.0 - 3.0 spec */
+#define CONFIG_HEADER_OFFSET_3_0 0x10
+#define CONFIG_LUN_OFFSET_3_0 0x10
+
 struct desc_field_offset device_desc_field_name[] = {
 	{"bLength",			0x00, BYTE},
 	{"bDescriptorType",		0x01, BYTE},
@@ -302,8 +309,8 @@ struct flag_fields ufs_flags[] = {
 	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
 /*D*/	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
 /*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
-/*F*/	{"fWriteBoosterBufferFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
-/*10h*/ {"fWriteBoosterBufferFlushDuringHibernate", (URD|UWRT),
+/*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT),
 		(READ_NRML|WRITE_VLT), DEV},
 /*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV}
 };
@@ -384,9 +391,12 @@ void print_descriptors(char *desc_str, __u8 *desc_buf,
 	int i;
 	struct desc_field_offset *tmp;
 	char str_buf[STR_BUF_LEN];
+	int offset = 0;
 
-	for (i = 0; i < arr_size; ++i) {
+	for (i = 0; offset < arr_size; ++i) {
 		tmp = &desc_array[i];
+		offset = tmp->offset + tmp->width_in_bytes;
+
 		if (tmp->width_in_bytes == BYTE) {
 			printf("%s [Byte offset 0x%x]: %s = 0x%x\n", desc_str,
 				tmp->offset, tmp->name, desc_buf[tmp->offset]);
@@ -471,7 +481,7 @@ void desc_help(char *tool_name)
 	printf("\n\t%s desc [-t] <descriptor idn> [-a|-r|-w] <data> [-p] "
 		"<device_path> \n", tool_name);
 	printf("\n\t-t\t description type idn\n"
-		"\t\t Available description types based on UFS ver 3.0 :\n"
+		"\t\t Available description types based on UFS ver 3.1 :\n"
 		"\t\t\t0:\tDevice\n"
 		"\t\t\t1:\tConfiguration\n"
 		"\t\t\t2:\tUnit\n"
@@ -503,7 +513,7 @@ void attribute_help(char *tool_name)
 		" <device_path> \n", tool_name);
 	printf("\n\t-t\t Attributes type idn\n"
 		"\t\t Available attributes and its access based on"
-		" UFS ver 3.0 :\n");
+		" UFS ver 3.1 :\n");
 
 	while (current_att < ARRAY_SIZE(ufs_attrs)) {
 		printf("\t\t\t %-3d: %-25s %s\n",
@@ -534,7 +544,7 @@ void flag_help(char *tool_name)
 	printf("\n\t%s fl [-t] <flag idn> [-a|-r|-o|-e] [-p]"
 		" <device_path>\n", tool_name);
 	printf("\n\t-t\t Flags type idn\n"
-		"\t\t Available flags and its access, based on UFS ver 3.0 :\n");
+		"\t\t Available flags and its access, based on UFS ver 3.1 :\n");
 
 	while (current_flag < QUERY_FLAG_IDN_MAX) {
 		printf("\t\t\t %-3d: %-25s %s\n", current_flag,
@@ -747,11 +757,12 @@ static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
 static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 {
 	int rc = OK;
+	int file_size;
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 conf_desc_buf[QUERY_DESC_CONFIGURAION_MAX_SIZE] = {0};
 	int offset, i;
-	int data_fd;
+	int data_fd = INVALID;
 	char *filename_header = "config_desc_data_ind_%d";
 	char output_file[30] = {0};
 
@@ -761,39 +772,61 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 			perror("can't open input file");
 			return ERROR;
 		}
-		if (read(data_fd, conf_desc_buf,
-			QUERY_DESC_CONFIGURAION_MAX_SIZE) !=
-			QUERY_DESC_CONFIGURAION_MAX_SIZE) {
-			print_error("Could not read config data from  %s file",
-				data_file);
+
+		file_size = lseek(data_fd, 0, SEEK_END);
+		if (file_size <= 0) {
+			print_error("Wrong config file");
+			rc = ERROR;
+			goto out;
+		}
+		lseek(data_fd, 0, SEEK_SET);
+
+		rc = read(data_fd, conf_desc_buf, file_size);
+		if (rc <= 0) {
+			print_error("Cannot config file");
 			rc = ERROR;
 			goto out;
 		}
 
 		rc = do_write_desc(fd, &bsg_req, &bsg_rsp,
 				QUERY_DESC_IDN_CONFIGURAION, index,
-				QUERY_DESC_CONFIGURAION_MAX_SIZE,
+				file_size,
 				conf_desc_buf);
 		if (!rc)
 			printf("Config Descriptor was written to device\n");
 	} else {
+		__u8 head_off = CONFIG_HEADER_OFFSET;
+		__u8 lun_off = CONFIG_LUN_OFFSET;
+
 		rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
 				QUERY_DESC_IDN_CONFIGURAION,
 				index, QUERY_DESC_CONFIGURAION_MAX_SIZE,
 				conf_desc_buf);
-		if (!rc)
-			print_descriptors("Config Device Descriptor:",
-				conf_desc_buf,
-				device_config_desc_field_name,
-				ARRAY_SIZE(device_config_desc_field_name));
+		if (rc) {
+			print_error("Coudn't read config descriptor error %d",
+				    rc);
 
+			goto out;
+		}
+
+		if (conf_desc_buf[0] == QUERY_DESC_CONFIGURAION_MAX_SIZE_3_0) {
+			head_off = CONFIG_HEADER_OFFSET_3_0;
+			lun_off = CONFIG_LUN_OFFSET_3_0;
+		}
+
+		print_descriptors("Config Device Descriptor:",
+			conf_desc_buf,
+			device_config_desc_field_name,
+			head_off);
+
+		offset = head_off;
 		for (i = 0 ; i < 8; i++) {
-			offset = (16 * (i+1));
 			printf("Config %d Unit Descriptor:\n", i);
 			print_descriptors("Config Descriptor:",
 				conf_desc_buf + offset,
 				device_config_unit_desc_field_name,
-				ARRAY_SIZE(device_config_unit_desc_field_name));
+				lun_off);
+			offset = offset  + lun_off;
 		}
 		sprintf(output_file, filename_header, index);
 		data_fd = open(output_file, O_WRONLY | O_CREAT,
@@ -802,19 +835,21 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 			perror("can't open output file");
 			return ERROR;
 		}
-		if (write(data_fd, conf_desc_buf,
-			QUERY_DESC_CONFIGURAION_MAX_SIZE) !=
-			QUERY_DESC_CONFIGURAION_MAX_SIZE) {
+
+		rc = write(data_fd, conf_desc_buf, conf_desc_buf[0]);
+		if (rc <= 0) {
 			print_error("Could not write config data into %s file",
 				output_file);
 			rc = ERROR;
 			goto out;
 		}
+
 		printf("Config Descriptor was written into %s file\n",
 			output_file);
 	}
 out:
-	close(data_fd);
+	if (data_fd != INVALID)
+		close(data_fd);
 	return rc;
 }
 
@@ -1069,7 +1104,7 @@ int do_attributes(struct tool_options *opt)
 			}
 			break;
 		case DWORD:
-			/* avoid -Wswitch warning - no need to check value */
+			/* avoid -switch warning - no need to check value */
 			break;
 		default:
 			print_error("Unsupported width %d",
