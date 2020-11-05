@@ -36,6 +36,10 @@ enum flag_idn {
 	QUERY_FLAG_IDN_BUSY_RTC			= 0x09,
 	QUERY_FLAG_IDN_RESERVED4		= 0x0A,
 	QUERY_FLAG_IDN_PERMANENTLYDISABLEFW	= 0x0B,
+	QUERY_FLAG_IDN_WB_EN			= 0x0E,
+	QUERY_FLAG_IDN_WB_BUF_FLUSH_EN		= 0x0F,
+	QUERY_FLAG_IDN_WB_BUF_FLUSH_H8		= 0x10,
+	QUERY_FLAG_IDN_HPB_RESET		= 0x11,
 	QUERY_FLAG_IDN_MAX
 };
 
@@ -68,6 +72,11 @@ enum attr_idn {
 	QUERY_ATTR_IDN_CASE_ROUGH_TEMPERAURE		= 0x18,
 	QUERY_ATTR_IDN_TOO_HIGH_TEMP_BOUNDARY		= 0x19,
 	QUERY_ATTR_IDN_TOO_LOW_TEMP_BOUNDARY		= 0x1A,
+	QUERY_ATTR_IDN_THROTTLING_STAT			= 0x1B,
+	QUERY_ATTR_IDN_WB_FLUSH_STAT			= 0x1C,
+	QUERY_ATTR_IDN_WB_BUF_SIZE			= 0x1D,
+	QUERY_ATTR_IDN_WB_LIFE_TIME_EST			= 0x1E,
+	QUERY_ATTR_IDN_WB_CUR_BUF_SIZE			= 0x1F,
 	QUERY_ATTR_IDN_REFRESH_STATUS			= 0x2C,
 	QUERY_ATTR_IDN_REFRESH_FREQ			= 0x2D,
 	QUERY_ATTR_IDN_REFRESH_UNIT			= 0x2E,
@@ -106,16 +115,25 @@ enum query_opcode {
 };
 
 enum ufs_desc_max_size {
-	QUERY_DESC_DEVICE_MAX_SIZE		= 0x40,
-	QUERY_DESC_CONFIGURAION_MAX_SIZE	= 0x90,
-	QUERY_DESC_UNIT_MAX_SIZE		= 0x23,
-	QUERY_DESC_INTERCONNECT_MAX_SIZE	= 0x06,
+	/* Max descriptors size from 2.1 to 3.0 UFS spec */
+	QUERY_DESC_DEVICE_MAX_SIZE_3_0		= 0x40,
+	QUERY_DESC_CONFIGURAION_MAX_SIZE_3_0	= 0x90,
+	QUERY_DESC_UNIT_MAX_SIZE_3_0		= 0x23,
+	QUERY_DESC_GEOMETRY_MAX_SIZE_3_0	= 0x48,
+	QUERY_DESC_HEALTH_MAX_SIZE_2_1		= 0x25,
+
+	/* Max descriptors size for 3.1 UFS spec */
+	QUERY_DESC_DEVICE_MAX_SIZE		= 0x59,
+	QUERY_DESC_CONFIGURAION_MAX_SIZE	= 0xe6,
+	QUERY_DESC_GEOMETRY_MAX_SIZE		= 0x57,
+	QUERY_DESC_UNIT_MAX_SIZE		= 0x2d,
+
 	/*
 	 * Max. 126 UNICODE characters (2 bytes per character) plus 2 bytes
 	 * of descriptor header.
 	 */
 	QUERY_DESC_STRING_MAX_SIZE		= 0xFE,
-	QUERY_DESC_GEOMETRY_MAX_SIZE		= 0x48,
+	QUERY_DESC_INTERCONNECT_MAX_SIZE	= 0x06,
 	QUERY_DESC_POWER_MAX_SIZE		= 0x62,
 	QUERY_DESC_HEALTH_MAX_SIZE		= 0x2d
 };
@@ -156,6 +174,7 @@ enum {
 
 int write_file(const char *name, const void *buffer, int length);
 void print_error(const char *msg, ...);
+void print_warn(const char *msg, ...);
 long str_to_long(char *nptr, int base, long *result);
 #ifdef DEBUG
 	#define WRITE_LOG(format, ...) fprintf(stderr, format"\n", __VA_ARGS__)

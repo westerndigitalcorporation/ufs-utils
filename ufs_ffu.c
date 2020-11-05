@@ -143,7 +143,7 @@ static int check_ffu_status(int fd, struct tool_options *opt)
 			UPIU_QUERY_OPCODE_READ_ATTR, FFU_STATUS_ATTR,
 			0, 0, 0, 0, 0);
 	if (rc) {
-		print_error("Warning cannot read bDeviceFFUStatus attribute status\n");
+		print_warn("cannot read bDeviceFFUStatus attribute status");
 		goto out;
 	}
 

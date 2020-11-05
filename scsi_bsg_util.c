@@ -265,17 +265,21 @@ static int send_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
 		((errno == EINTR) || (errno == EAGAIN)));
 	if (sg_type == SG4_TYPE) {
 		if (io_hdr_v4.info != 0) {
-			print_error("Command fail with status %x , senseKey %s",
-				io_hdr_v4.info,
-				sense_key_string(sense_buffer[2]));
+			print_error("Command fail with status %x , senseKey %s, asc 0x%02x, ascq 0x%02x",
+				    io_hdr_v4.info,
+				    sense_key_string(sense_buffer[2]),
+				    sense_buffer[12],
+				    sense_buffer[13]);
 			ret = -EINVAL;
 		}
 	}
 	else {
 		if (io_hdr_v3.status) {
-			print_error("Command fail with status %x , senseKey %s",
-				io_hdr_v3.status,
-				sense_key_string(sense_buffer[2]));
+			print_error("Command fail with status %x , senseKey %s, asc 0x%02x, ascq 0x%02x",
+				    io_hdr_v3.status,
+				    sense_key_string(sense_buffer[2]),
+				    sense_buffer[12],
+				    sense_buffer[13]);
 			ret = -EINVAL;
 		}
 

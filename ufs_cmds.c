@@ -12,6 +12,7 @@
 #include <endian.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "ufs.h"
 #include "ufs_cmds.h"
@@ -20,6 +21,13 @@
 #define STR_BUF_LEN 33
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define ATTR_RSRV() "Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID
+
+#define CONFIG_HEADER_OFFSET 0x16
+#define CONFIG_LUN_OFFSET 0x1A
+
+/* Config desc. offsets for UFS 2.0 - 3.0 spec */
+#define CONFIG_HEADER_OFFSET_3_0 0x10
+#define CONFIG_LUN_OFFSET_3_0 0x10
 
 struct desc_field_offset device_desc_field_name[] = {
 	{"bLength",			0x00, BYTE},
@@ -56,7 +64,21 @@ struct desc_field_offset device_desc_field_name[] = {
 	{"bNumSecureWPArea",		0x24, BYTE},
 	{"dPSAMaxDataSize",		0x25, DWORD},
 	{"bPSAStateTimeout",		0x29, BYTE},
-	{"iProductRevisionLevel",	0x2A, BYTE}
+	{"iProductRevisionLevel",	0x2A, BYTE},
+	{"Reserved1",			0x2B, BYTE},
+	{"Reserved2",			0x2C, DWORD},
+	{"Reserved3",			0x30, DWORD},
+	{"Reserved4",			0x34, DWORD},
+	{"Reserved5",			0x38, DWORD},
+	{"Reserved6",			0x3c, DWORD},
+	{"wHPBVersion",			0x40, WORD},
+	{"bHPBControl",			0x42, BYTE},
+	{"Reserved8",			0x43, DWORD},
+	{"Reserved9",			0x47, DDWORD},
+	{"dExtendedUFSFeaturesSupport",	0x4F, DWORD},
+	{"bWriteBoosterBufferPreserveUserSpaceEn", 0x53, BYTE},
+	{"bWriteBoosterBufferType",	0x54, BYTE},
+	{"dNumSharedWriteBoosterBufferAllocUnits", 0x55, DWORD}
 };
 
 struct desc_field_offset device_config_desc_field_name[] = {
@@ -70,10 +92,14 @@ struct desc_field_offset device_config_desc_field_name[] = {
 	{"bSecureRemovalType",	0x07, BYTE},
 	{"bInitActiveICCLevel",	0x08, BYTE},
 	{"wPeriodicRTCUpdate",	0x09, WORD},
+	{"bHPBControl",		0x0B, BYTE},
 	{"bRPMBRegionEnable",	0x0C, BYTE},
 	{"bRPMBRegion1Size",	0x0D, BYTE},
 	{"bRPMBRegion2Size",	0x0E, BYTE},
 	{"bRPMBRegion3Size",	0x0F, BYTE},
+	{"bWriteBoosterBufferPreserveUserSpaceEn", 0x10, BYTE},
+	{"bWriteBoosterBufferType",	0x11, BYTE},
+	{"dNumSharedWriteBoosterBufferAllocUnits", 0x12, DWORD}
 };
 
 struct desc_field_offset device_config_unit_desc_field_name[] = {
@@ -85,7 +111,11 @@ struct desc_field_offset device_config_unit_desc_field_name[] = {
 	{"bDataReliability",		0x08, BYTE},
 	{"bLogicalBlockSize",		0x09, BYTE},
 	{"bProvisioningType",		0x0A, BYTE},
-	{"wContextCapabilities",	0x0B, WORD}
+	{"wContextCapabilities",	0x0B, WORD},
+	{"wLUMaxActiveHPBRegions",	0x10, WORD},
+	{"wHPBPinnedRegionStartIdx",	0x12, WORD},
+	{"wNumHPBPinnedRegions",	0x14, WORD},
+	{"dLUNumWriteBoosterBufferAllocUnits", 0x16, DWORD}
 };
 
 struct desc_field_offset device_geo_desc_conf_field_name[] = {
@@ -121,7 +151,17 @@ struct desc_field_offset device_geo_desc_conf_field_name[] = {
 	{"wEnhanced3CapAdjFac",			0x3C, WORD},
 	{"dEnhanced4MaxNAllocU",		0x3E, DWORD},
 	{"wEnhanced4CapAdjFac",			0X42, WORD},
-	{"dOptimalLogicalBlockSize",		0X44, DWORD}
+	{"dOptimalLogicalBlockSize",		0X44, DWORD},
+	{"bHPBRegionSize",			0X48, BYTE},
+	{"bHPBNumberLU",			0X49, BYTE},
+	{"bHPBSubRegionSize",			0X4a, BYTE},
+	{"wDeviceMaxActiveHPBRegions",		0X4b, WORD},
+	{"Reserved",				0X4d, WORD},
+	{"dWriteBoosterBufferMaxNAllocUnits",	0X4f, DWORD},
+	{"bDeviceMaxWriteBoosterLUs",		0X53, BYTE},
+	{"bWriteBoosterBufferCapAdjFac",	0X54, BYTE},
+	{"bSupportedWriteBoosterBufferUserSpaceReductionTypes", 0X55, BYTE},
+	{"bSupportedWriteBoosterBufferTypes", 0X56, BYTE}
 };
 
 struct desc_field_offset device_interconnect_desc_conf_field_name[] = {
@@ -148,7 +188,11 @@ struct desc_field_offset device_unit_desc_field_name[] = {
 	{"bProvisioningType",		0x17, BYTE},
 	{"qPhyMemResourceCount",	0x18, DDWORD},
 	{"wContextCapabilities",	0x20, WORD},
-	{"bLargeUnitGranularity_M1",	0x22, BYTE}
+	{"bLargeUnitGranularity_M1",	0x22, BYTE},
+	{"wLUMaxActiveHPBRegions",	0x23, WORD},
+	{"wHPBPinnedRegionStartIdx",	0x25, WORD},
+	{"wNumHPBPinnedRegions",	0x27, WORD},
+	{"dLUNumWriteBoosterBufferAllocUnits",	0x29, DWORD}
 };
 
 struct desc_field_offset device_unit_rpmb_desc_field_name[] = {
@@ -200,7 +244,7 @@ struct query_err_res {
 
 struct attr_fields ufs_attrs[] = {
 	{"bBootLunEn", BYTE, (URD|UWRT), (READ_ONLY|WRITE_PRSIST), DEV},
-	{"Reserved", BYTE, (ACC_INVALID), MODE_INVALID, LEVEL_INVALID},
+	{"bMAX_DATA_SIZE_FOR_HPB_SINGLE_CMD", BYTE, URD, READ_ONLY, DEV},
 	{"bCurrentPowerMode", BYTE, URD, READ_ONLY, DEV},
 	{"bActiveICCLevel", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bOutOfOrderDataEn", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
@@ -225,7 +269,12 @@ struct attr_fields ufs_attrs[] = {
 	{"bRefClkGatingWaitTime", BYTE, URD, READ_ONLY, DEV},
 	{"bDeviceCaseRoughTemperaure", BYTE, URD, READ_ONLY, DEV},
 	{"bDeviceTooHighTempBoundary", BYTE, URD, READ_ONLY, DEV},
-	{"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
+/*1A*/  {"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
+/*1B*/  {"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
+/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV},
+/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV},
+/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV},
+/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -238,12 +287,7 @@ struct attr_fields ufs_attrs[] = {
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
+/*2C*/  {"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
 	{"bRefreshFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bRefreshUnit", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV}
@@ -262,6 +306,13 @@ struct flag_fields ufs_flags[] = {
 	{"fBusyRTC", URD, READ_ONLY, DEV},
 	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
 	{"fPermanentlyDisableFw", (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
+	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+/*D*/	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+/*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT),
+		(READ_NRML|WRITE_VLT), DEV},
+/*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV}
 };
 
 static struct query_err_res query_err_status[] = {
@@ -282,6 +333,20 @@ static struct query_err_res query_err_status[] = {
 	{"Invalid OPCODE", 0xFE},
 	{"General failure", 0xFF}
 };
+
+static const char *const desc_text[] = {
+	"Device",
+	"Config",
+	"Unit",
+	"RFU0",
+	"Interconnect",
+	"String",
+	"RFU1",
+	"Geometry",
+	"Power",
+	"Health"
+};
+
 int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 		struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 		__u16 desc_buf_len, __u8 *data_buf);
@@ -320,15 +385,33 @@ static void print_power_desc_icc(__u8 *desc_buf, int vccIndex)
 	printf("\n");
 }
 
+static void print_vendor_info(__u8 *desc_buf, int len)
+{
+	int i;
+
+	if (!desc_buf)
+		return;
+
+	for (i = 0 ; i < len; i++) {
+		if (!(i%16))
+			printf("\t\n");
+		printf("0x%02x ", desc_buf[i]);
+	}
+	printf("\n");
+}
+
 void print_descriptors(char *desc_str, __u8 *desc_buf,
 		struct desc_field_offset *desc_array, int arr_size)
 {
 	int i;
 	struct desc_field_offset *tmp;
 	char str_buf[STR_BUF_LEN];
+	int offset = 0;
 
-	for (i = 0; i < arr_size; ++i) {
+	for (i = 0; offset < arr_size; ++i) {
 		tmp = &desc_array[i];
+		offset = tmp->offset + tmp->width_in_bytes;
+
 		if (tmp->width_in_bytes == BYTE) {
 			printf("%s [Byte offset 0x%x]: %s = 0x%x\n", desc_str,
 				tmp->offset, tmp->name, desc_buf[tmp->offset]);
@@ -346,11 +429,21 @@ void print_descriptors(char *desc_str, __u8 *desc_buf,
 				be64toh(*(__u64 *)&desc_buf[tmp->offset]));
 		} else if ((tmp->width_in_bytes > DDWORD) &&
 				tmp->width_in_bytes < STR_BUF_LEN) {
-			memset(str_buf, 0, STR_BUF_LEN);
-			memcpy(str_buf, &desc_buf[tmp->offset],
-				tmp->width_in_bytes);
-			printf("%s [Byte offset 0x%x]: %s = %s\n", desc_str,
-				tmp->offset, tmp->name, str_buf);
+			if (!strcmp(tmp->name, "VendorPropInfo")) {
+				printf("%s [Byte offset 0x%x]: %s =\n",
+					desc_str,
+					tmp->offset,
+					tmp->name);
+				print_vendor_info(&desc_buf[tmp->offset],
+						  tmp->width_in_bytes);
+			} else {
+				memset(str_buf, 0, STR_BUF_LEN);
+				memcpy(str_buf, &desc_buf[tmp->offset],
+					tmp->width_in_bytes);
+				printf("%s [Byte offset 0x%x]: %s = %s\n",
+					desc_str,
+					tmp->offset, tmp->name, str_buf);
+			}
 		} else {
 			printf("%s [Byte offset 0x%x]: %s Wrong Width = %d",
 				desc_str, tmp->offset, tmp->name,
@@ -413,7 +506,7 @@ void desc_help(char *tool_name)
 	printf("\n\t%s desc [-t] <descriptor idn> [-a|-r|-w] <data> [-p] "
 		"<device_path> \n", tool_name);
 	printf("\n\t-t\t description type idn\n"
-		"\t\t Available description types based on UFS ver 3.0 :\n"
+		"\t\t Available description types based on UFS ver 3.1 :\n"
 		"\t\t\t0:\tDevice\n"
 		"\t\t\t1:\tConfiguration\n"
 		"\t\t\t2:\tUnit\n"
@@ -445,7 +538,7 @@ void attribute_help(char *tool_name)
 		" <device_path> \n", tool_name);
 	printf("\n\t-t\t Attributes type idn\n"
 		"\t\t Available attributes and its access based on"
-		" UFS ver 3.0 :\n");
+		" UFS ver 3.1 :\n");
 
 	while (current_att < ARRAY_SIZE(ufs_attrs)) {
 		printf("\t\t\t %-3d: %-25s %s\n",
@@ -476,7 +569,7 @@ void flag_help(char *tool_name)
 	printf("\n\t%s fl [-t] <flag idn> [-a|-r|-o|-e] [-p]"
 		" <device_path>\n", tool_name);
 	printf("\n\t-t\t Flags type idn\n"
-		"\t\t Available flags and its access, based on UFS ver 3.0 :\n");
+		"\t\t Available flags and its access, based on UFS ver 3.1 :\n");
 
 	while (current_flag < QUERY_FLAG_IDN_MAX) {
 		printf("\t\t\t %-3d: %-25s %s\n", current_flag,
@@ -512,10 +605,9 @@ int do_device_desc(int fd, __u8 *desc_buff)
 	}
 	if (!desc_buff)
 		print_descriptors("Device Descriptor", data_buf,
-				device_desc_field_name,
-				ARRAY_SIZE(device_desc_field_name));
+				device_desc_field_name, data_buf[0]);
 	else
-		memcpy(desc_buff, data_buf, QUERY_DESC_DEVICE_MAX_SIZE);
+		memcpy(desc_buff, data_buf, data_buf[0]);
 
 out:
 	return rc;
@@ -537,12 +629,10 @@ static int do_unit_desc(int fd, __u8 lun)
 
 	if (lun == 0xc4)
 		print_descriptors("RPMB LUN Descriptor", data_buf,
-				device_unit_rpmb_desc_field_name,
-				ARRAY_SIZE(device_unit_rpmb_desc_field_name));
+				device_unit_rpmb_desc_field_name, data_buf[0]);
 	else
 		print_descriptors("LUN Descriptor", data_buf,
-				device_unit_desc_field_name,
-				ARRAY_SIZE(device_unit_desc_field_name));
+				device_unit_desc_field_name, data_buf[0]);
 
 
 out:
@@ -565,8 +655,7 @@ static int do_interconnect_desc(int fd)
 	}
 
 	print_descriptors("Interconnect Descriptor", data_buf,
-			device_interconnect_desc_conf_field_name,
-			ARRAY_SIZE(device_interconnect_desc_conf_field_name));
+			device_interconnect_desc_conf_field_name, data_buf[0]);
 
 out:
 	return ret;
@@ -588,8 +677,7 @@ static int do_geo_desc(int fd)
 	}
 
 	print_descriptors("Geometry Descriptor", data_buf,
-			device_geo_desc_conf_field_name,
-			ARRAY_SIZE(device_geo_desc_conf_field_name));
+			device_geo_desc_conf_field_name, data_buf[0]);
 
 out:
 	return ret;
@@ -642,8 +730,7 @@ static int do_health_desc(int fd)
 	}
 
 	print_descriptors("Device Health Descriptor:", data_buf,
-			device_health_desc_conf_field_name,
-			ARRAY_SIZE(device_health_desc_conf_field_name));
+			device_health_desc_conf_field_name, data_buf[0]);
 
 out:
 	return ret;
@@ -695,11 +782,12 @@ static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
 static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 {
 	int rc = OK;
+	int file_size;
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 conf_desc_buf[QUERY_DESC_CONFIGURAION_MAX_SIZE] = {0};
 	int offset, i;
-	int data_fd;
+	int data_fd = INVALID;
 	char *filename_header = "config_desc_data_ind_%d";
 	char output_file[30] = {0};
 
@@ -709,60 +797,84 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 			perror("can't open input file");
 			return ERROR;
 		}
-		if (read(data_fd, conf_desc_buf,
-			QUERY_DESC_CONFIGURAION_MAX_SIZE) !=
-			QUERY_DESC_CONFIGURAION_MAX_SIZE) {
-			print_error("Could not read config data from  %s file",
-				data_file);
+
+		file_size = lseek(data_fd, 0, SEEK_END);
+		if (file_size <= 0) {
+			print_error("Wrong config file");
+			rc = ERROR;
+			goto out;
+		}
+		lseek(data_fd, 0, SEEK_SET);
+
+		rc = read(data_fd, conf_desc_buf, file_size);
+		if (rc <= 0) {
+			print_error("Cannot config file");
 			rc = ERROR;
 			goto out;
 		}
 
 		rc = do_write_desc(fd, &bsg_req, &bsg_rsp,
 				QUERY_DESC_IDN_CONFIGURAION, index,
-				QUERY_DESC_CONFIGURAION_MAX_SIZE,
+				file_size,
 				conf_desc_buf);
 		if (!rc)
 			printf("Config Descriptor was written to device\n");
 	} else {
+		__u8 head_off = CONFIG_HEADER_OFFSET;
+		__u8 lun_off = CONFIG_LUN_OFFSET;
+
 		rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
 				QUERY_DESC_IDN_CONFIGURAION,
 				index, QUERY_DESC_CONFIGURAION_MAX_SIZE,
 				conf_desc_buf);
-		if (!rc)
-			print_descriptors("Config Device Descriptor:",
-				conf_desc_buf,
-				device_config_desc_field_name,
-				ARRAY_SIZE(device_config_desc_field_name));
+		if (rc) {
+			print_error("Coudn't read config descriptor error %d",
+				    rc);
 
+			goto out;
+		}
+
+		if (conf_desc_buf[0] == QUERY_DESC_CONFIGURAION_MAX_SIZE_3_0) {
+			head_off = CONFIG_HEADER_OFFSET_3_0;
+			lun_off = CONFIG_LUN_OFFSET_3_0;
+		}
+
+		print_descriptors("Config Device Descriptor:",
+			conf_desc_buf,
+			device_config_desc_field_name,
+			head_off);
+
+		offset = head_off;
 		for (i = 0 ; i < 8; i++) {
-			offset = (16 * (i+1));
 			printf("Config %d Unit Descriptor:\n", i);
 			print_descriptors("Config Descriptor:",
 				conf_desc_buf + offset,
 				device_config_unit_desc_field_name,
-				ARRAY_SIZE(device_config_unit_desc_field_name));
+				lun_off);
+			offset = offset  + lun_off;
 		}
 		sprintf(output_file, filename_header, index);
-		data_fd = open(output_file, O_WRONLY | O_CREAT,
+		data_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC,
 				S_IRUSR | S_IWUSR);
 		if (data_fd < 0) {
 			perror("can't open output file");
 			return ERROR;
 		}
-		if (write(data_fd, conf_desc_buf,
-			QUERY_DESC_CONFIGURAION_MAX_SIZE) !=
-			QUERY_DESC_CONFIGURAION_MAX_SIZE) {
+
+		rc = write(data_fd, conf_desc_buf, conf_desc_buf[0]);
+		if (rc <= 0) {
 			print_error("Could not write config data into %s file",
 				output_file);
 			rc = ERROR;
 			goto out;
 		}
+
 		printf("Config Descriptor was written into %s file\n",
 			output_file);
 	}
 out:
-	close(data_fd);
+	if (data_fd != INVALID)
+		close(data_fd);
 	return rc;
 }
 
@@ -784,7 +896,9 @@ int do_desc(struct tool_options *opt)
 	if (opt->opr == READ_ALL) {
 		if (do_device_desc(fd, NULL) || do_unit_desc(fd, 0) ||
 			do_interconnect_desc(fd) || do_geo_desc(fd) ||
-			do_power_desc(fd) || do_health_desc(fd))
+			do_power_desc(fd) ||
+			do_health_desc(fd) ||
+			do_conf_desc(fd, READ, 0, NULL))
 			rc = ERROR;
 		goto out;
 	}
@@ -871,7 +985,6 @@ int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 		query_response_error(res_code, idn);
 		rc = ERROR;
 	}
-
 out:
 	return rc;
 }
@@ -886,14 +999,65 @@ static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			0, desc_buf_len, 0, data_buf);
 }
 
+static void check_read_desc_size(__u8 idn, __u8 *data_buf)
+{
+	bool unoff = false;
+
+	switch (idn) {
+	case QUERY_DESC_IDN_DEVICE:
+		if ((data_buf[0] != QUERY_DESC_DEVICE_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_DEVICE_MAX_SIZE_3_0))
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_CONFIGURAION:
+		if ((data_buf[0] != QUERY_DESC_CONFIGURAION_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_CONFIGURAION_MAX_SIZE_3_0))
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_UNIT:
+		if ((data_buf[0] != QUERY_DESC_UNIT_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_UNIT_MAX_SIZE_3_0))
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_INTERCONNECT:
+		if (data_buf[0] != QUERY_DESC_INTERCONNECT_MAX_SIZE)
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_GEOMETRY:
+		if ((data_buf[0] != QUERY_DESC_GEOMETRY_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_GEOMETRY_MAX_SIZE_3_0))
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_POWER:
+		if (data_buf[0] != QUERY_DESC_POWER_MAX_SIZE)
+			unoff = true;
+		break;
+	case QUERY_DESC_IDN_HEALTH:
+		if ((data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE) &&
+			(data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE_2_1))
+			unoff = true;
+	break;
+	}
+
+	if (unoff)
+		print_warn("Unofficial %s desc size, len = 0x%x",
+			(char *)desc_text[idn], data_buf[0]);
+}
+
 int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 			__u16 desc_buf_len, __u8 *data_buf)
 {
-	return do_query_rq(fd, bsg_req, bsg_rsp,
+	int rc;
+
+	rc = do_query_rq(fd, bsg_req, bsg_rsp,
 			UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 			UPIU_QUERY_OPCODE_READ_DESC, idn, index, 0,
 			0, desc_buf_len, data_buf);
+	if (!rc)
+		check_read_desc_size(idn, data_buf);
+
+	return rc;
 }
 
 int do_attributes(struct tool_options *opt)
@@ -968,7 +1132,7 @@ int do_attributes(struct tool_options *opt)
 			}
 			break;
 		case DWORD:
-			/* avoid -Wswitch warning - no need to check value */
+			/* avoid -switch warning - no need to check value */
 			break;
 		default:
 			print_error("Unsupported width %d",

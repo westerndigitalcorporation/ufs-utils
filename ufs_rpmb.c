@@ -254,7 +254,7 @@ static int do_read_rpmb(int fd, int out_fd, unsigned char *key,
 		 * Could not read geometry descriptor, max block set
 		 * DEFAULT_RPMB_NUM_BLOCKS);
 		 */
-		printf("Warning: Cannot get bRPMB_ReadWriteSize");
+		print_warn("Cannot get bRPMB_ReadWriteSize");
 		max_num_blocks = DEFAULT_RPMB_NUM_BLOCKS;
 	} else {
 		max_num_blocks = data_buf[0x17];
@@ -309,7 +309,7 @@ static int do_read_rpmb(int fd, int out_fd, unsigned char *key,
 			 * include the last one
 			 */
 			if (memcmp(mac, last_frame->key_mac, sizeof(mac)))
-				printf("\nWarning: RPMB MAC mismatch mac\n");
+				print_warn("RPMB MAC mismatch mac");
 		}
 		for (i = 0; i < num_read_blocks; i++) {
 			write_size = write(out_fd, &(frames_out[i].data),
@@ -373,7 +373,7 @@ static int do_write_rpmb(int fd, const unsigned char *key, int input_fd,
 	}
 
 	if (ret) {
-		printf("Warning: Cannot get bRPMB_ReadWriteSize");
+		print_warn("Cannot get bRPMB_ReadWriteSize");
 		max_num_blocks = DEFAULT_RPMB_NUM_BLOCKS;
 	} else {
 		/*bRPMB_ReadWriteSize e.g 0x40 * 256 = 16K*/
@@ -491,7 +491,7 @@ static int do_read_conf_block(int fd, const unsigned char *key, __u8 lun,
 		 * Note the mac much only in case we read 1 block , otherwise the mac
 		 * field is not much, in all frame ,include the last one */
 		if (memcmp(mac, frame_out.key_mac, sizeof(mac)))
-			print_error("Warning: RPMB MAC mismatch mac");
+			print_error("RPMB MAC mismatch mac");
 	}
 	write_size = write(output_fd, frame_out.data, RPMB_DATA_SIZE);
 	if (write_size != RPMB_DATA_SIZE) {

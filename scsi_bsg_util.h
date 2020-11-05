@@ -21,7 +21,7 @@
 #define SG_DXFER_TO_DEV -2      /* e.g. a SCSI WRITE command */
 #define SG_DXFER_FROM_DEV -3    /* e.g. a SCSI READ command */
 
-#define SENSE_BUFF_LEN	(32)
+#define SENSE_BUFF_LEN	(18)
 #define WRITE_BUF_CMDLEN 10
 #define READ_BUF_CMDLEN 10
 #define SEC_PROTOCOL_TIMEOUT_MSEC	(1000)
