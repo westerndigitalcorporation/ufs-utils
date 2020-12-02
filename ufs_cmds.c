@@ -806,6 +806,9 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 		}
 		lseek(data_fd, 0, SEEK_SET);
 
+		if (file_size > QUERY_DESC_CONFIGURAION_MAX_SIZE)
+			file_size = QUERY_DESC_CONFIGURAION_MAX_SIZE;
+
 		rc = read(data_fd, conf_desc_buf, file_size);
 		if (rc <= 0) {
 			print_error("Cannot config file");
