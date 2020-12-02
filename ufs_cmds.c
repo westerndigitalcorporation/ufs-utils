@@ -244,7 +244,7 @@ struct query_err_res {
 
 struct attr_fields ufs_attrs[] = {
 	{"bBootLunEn", BYTE, (URD|UWRT), (READ_ONLY|WRITE_PRSIST), DEV},
-	{"bMAX_DATA_SIZE_FOR_HPB_SINGLE_CMD", BYTE, URD, READ_ONLY, DEV},
+	{ATTR_RSRV()},
 	{"bCurrentPowerMode", BYTE, URD, READ_ONLY, DEV},
 	{"bActiveICCLevel", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bOutOfOrderDataEn", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
