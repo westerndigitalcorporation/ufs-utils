@@ -308,10 +308,10 @@ struct flag_fields ufs_flags[] = {
 	{"fPermanentlyDisableFw", (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
 	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
 /*D*/	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-/*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
-/*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
+/*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
 /*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT),
-		(READ_NRML|WRITE_VLT), DEV},
+		(READ_NRML|WRITE_VLT), DEV | ARRAY},
 /*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV}
 };
 
@@ -1207,7 +1207,9 @@ int do_flags(struct tool_options *opt)
 			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 					UPIU_QUERY_OPCODE_READ_FLAG, flag_idn,
-					opt->index, opt->selector, 0, 0, 0);
+					(tmp->device_level & ARRAY) ?
+					opt->index : 0,
+					opt->selector, 0, 0, 0);
 			if (rc == OK) {
 				printf("%-26s := 0x%01x\n", tmp->name,
 					be32toh(bsg_rsp.upiu_rsp.qr.value) &
