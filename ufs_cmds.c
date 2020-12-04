@@ -252,7 +252,7 @@ struct attr_fields ufs_attrs[] = {
 	{"bPurgeStatus", BYTE, URD, READ_ONLY, DEV},
 	{"bMaxDataInSize", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bMaxDataOutSize", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-	{"dDynCapNeeded", WORD, URD, READ_ONLY, DEV},
+	{"dDynCapNeeded", WORD, URD, READ_ONLY, ARRAY},
 	{"bRefClkFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bConfigDescrLock", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
 	{"bMaxNumOfRTT", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
@@ -271,10 +271,10 @@ struct attr_fields ufs_attrs[] = {
 	{"bDeviceTooHighTempBoundary", BYTE, URD, READ_ONLY, DEV},
 /*1A*/  {"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
 /*1B*/  {"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
-/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV},
-/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV},
-/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV},
-/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV},
+/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV | ARRAY},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -1099,7 +1099,9 @@ int do_attributes(struct tool_options *opt)
 			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 					UPIU_QUERY_OPCODE_READ_ATTR, att_idn,
-					opt->index, opt->selector, 0, 0, 0);
+					tmp->device_level & ARRAY ?
+					opt->index : 0,
+					opt->selector, 0, 0, 0);
 			if (rc == OK) {
 				attr_value = be32toh(bsg_rsp.upiu_rsp.qr.value);
 				print_attribute(tmp, (__u8 *)&attr_value);
