@@ -244,7 +244,7 @@ struct query_err_res {
 
 struct attr_fields ufs_attrs[] = {
 	{"bBootLunEn", BYTE, (URD|UWRT), (READ_ONLY|WRITE_PRSIST), DEV},
-	{"bMAX_DATA_SIZE_FOR_HPB_SINGLE_CMD", BYTE, URD, READ_ONLY, DEV},
+	{ATTR_RSRV()},
 	{"bCurrentPowerMode", BYTE, URD, READ_ONLY, DEV},
 	{"bActiveICCLevel", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bOutOfOrderDataEn", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
@@ -252,7 +252,7 @@ struct attr_fields ufs_attrs[] = {
 	{"bPurgeStatus", BYTE, URD, READ_ONLY, DEV},
 	{"bMaxDataInSize", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bMaxDataOutSize", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-	{"dDynCapNeeded", WORD, URD, READ_ONLY, DEV},
+	{"dDynCapNeeded", WORD, URD, READ_ONLY, ARRAY},
 	{"bRefClkFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bConfigDescrLock", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
 	{"bMaxNumOfRTT", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
@@ -271,10 +271,10 @@ struct attr_fields ufs_attrs[] = {
 	{"bDeviceTooHighTempBoundary", BYTE, URD, READ_ONLY, DEV},
 /*1A*/  {"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
 /*1B*/  {"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
-/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV},
-/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV},
-/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV},
-/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV},
+/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV | ARRAY},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -308,10 +308,10 @@ struct flag_fields ufs_flags[] = {
 	{"fPermanentlyDisableFw", (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
 	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
 /*D*/	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-/*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
-/*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
+/*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
 /*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT),
-		(READ_NRML|WRITE_VLT), DEV},
+		(READ_NRML|WRITE_VLT), DEV | ARRAY},
 /*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV}
 };
 
@@ -806,6 +806,9 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 		}
 		lseek(data_fd, 0, SEEK_SET);
 
+		if (file_size > QUERY_DESC_CONFIGURAION_MAX_SIZE)
+			file_size = QUERY_DESC_CONFIGURAION_MAX_SIZE;
+
 		rc = read(data_fd, conf_desc_buf, file_size);
 		if (rc <= 0) {
 			print_error("Cannot config file");
@@ -1096,7 +1099,9 @@ int do_attributes(struct tool_options *opt)
 			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 					UPIU_QUERY_OPCODE_READ_ATTR, att_idn,
-					opt->index, opt->selector, 0, 0, 0);
+					tmp->device_level & ARRAY ?
+					opt->index : 0,
+					opt->selector, 0, 0, 0);
 			if (rc == OK) {
 				attr_value = be32toh(bsg_rsp.upiu_rsp.qr.value);
 				print_attribute(tmp, (__u8 *)&attr_value);
@@ -1204,7 +1209,9 @@ int do_flags(struct tool_options *opt)
 			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 					UPIU_QUERY_OPCODE_READ_FLAG, flag_idn,
-					opt->index, opt->selector, 0, 0, 0);
+					(tmp->device_level & ARRAY) ?
+					opt->index : 0,
+					opt->selector, 0, 0, 0);
 			if (rc == OK) {
 				printf("%-26s := 0x%01x\n", tmp->name,
 					be32toh(bsg_rsp.upiu_rsp.qr.value) &
