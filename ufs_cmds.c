@@ -1211,8 +1211,8 @@ int do_flags(struct tool_options *opt)
 					0xff);
 			} else {
 				/* on failuire make note and keep going */
-				print_error("%s flag read failed for flag %s",
-					tmp->name);
+				print_error("Read for flag %s failed",
+					    tmp->name);
 			}
 
 			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
