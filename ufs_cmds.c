@@ -999,9 +999,10 @@ static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			0, desc_buf_len, 0, data_buf);
 }
 
-static void check_read_desc_size(__u8 idn, __u8 *data_buf)
+static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 {
 	bool unoff = false;
+	int rc = OK;
 
 	switch (idn) {
 	case QUERY_DESC_IDN_DEVICE:
@@ -1039,9 +1040,19 @@ static void check_read_desc_size(__u8 idn, __u8 *data_buf)
 	break;
 	}
 
-	if (unoff)
-		print_warn("Unofficial %s desc size, len = 0x%x",
-			(char *)desc_text[idn], data_buf[0]);
+	if (unoff) {
+		int file_status;
+
+		rc = ERROR;
+		print_error("Unofficial %s desc size, len = 0x%x",
+			    (char *)desc_text[idn], data_buf[0]);
+		file_status = write_file("unofficial.dat", data_buf,
+					 data_buf[0]);
+		if (!file_status)
+			printf("\nunofficial.dat raw data file was created\n");
+	}
+
+	return rc;
 }
 
 int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
@@ -1055,7 +1066,7 @@ int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 			UPIU_QUERY_OPCODE_READ_DESC, idn, index, 0,
 			0, desc_buf_len, data_buf);
 	if (!rc)
-		check_read_desc_size(idn, data_buf);
+		rc = check_read_desc_size(idn, data_buf);
 
 	return rc;
 }
