@@ -312,7 +312,8 @@ struct flag_fields ufs_flags[] = {
 /*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
 /*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT),
 		(READ_NRML|WRITE_VLT), DEV},
-/*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV}
+/*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV},
+/*12h*/ {"fHPBEn", (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 };
 
 static struct query_err_res query_err_status[] = {
