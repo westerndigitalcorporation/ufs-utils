@@ -526,6 +526,7 @@ void desc_help(char *tool_name)
 	printf("\t\t Set the input string after -w opt\n");
 	printf("\t\t for String descriptor\n");
 	printf("\n\t-i\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t Set selector parameter(default = 0)\n");
 	printf("\n\t-p\t path to ufs bsg device\n");
 }
 
@@ -556,6 +557,8 @@ void attribute_help(char *tool_name)
 	printf("\n\t-r\tread operation (default), for readable attribute(s)\n");
 	printf("\n\t-w\twrite operation (with hex data),"
 		" for writable attribute\n");
+	printf("\n\t-i\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t Set selector parameter(default = 0)\n");
 	printf("\n\t-p\tpath to ufs bsg device\n");
 	printf("\n\tExample - Read bBootLunEn\n"
 		"\t\t%s attr -t 0 -p /dev/ufs-bsg\n", tool_name);
@@ -585,6 +588,8 @@ void flag_help(char *tool_name)
 	printf("\n\t-e\t set flag operation\n");
 	printf("\n\t-c\t clear/reset flag operation\n");
 	printf("\n\t-o\t toggle flag operation\n");
+	printf("\n\t-i\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t Set selector parameter(default = 0)\n");
 	printf("\n\t-p\t path to ufs bsg device\n");
 	printf("\n\tExample - Read the bkops operation flag\n"
 		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
@@ -1091,7 +1096,6 @@ int do_attributes(struct tool_options *opt)
 		print_error("open");
 		return ERROR;
 	}
-
 	tmp = &ufs_attrs[opt->idn];
 
 	if (opt->opr == READ_ALL) {
