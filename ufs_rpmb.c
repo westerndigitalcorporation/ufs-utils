@@ -224,7 +224,7 @@ static int do_read_counter(int fd, __u32 *cnt, __u8 region, __u8 sg_type,
 }
 
 static int do_read_rpmb(int fd, int out_fd, unsigned char *key,
-	__u16 start_addr, __u16 num_blocks, __u8 region, __u8 sg_type)
+	int start_addr, int num_blocks, __u8 region, __u8 sg_type)
 {
 	int ret = ERROR;
 	int i;
