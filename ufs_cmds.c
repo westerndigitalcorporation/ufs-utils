@@ -252,7 +252,7 @@ struct attr_fields ufs_attrs[] = {
 	{"bPurgeStatus", BYTE, URD, READ_ONLY, DEV},
 	{"bMaxDataInSize", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bMaxDataOutSize", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-	{"dDynCapNeeded", WORD, URD, READ_ONLY, DEV},
+	{"dDynCapNeeded", WORD, URD, READ_ONLY, ARRAY},
 	{"bRefClkFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bConfigDescrLock", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
 	{"bMaxNumOfRTT", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
@@ -271,10 +271,10 @@ struct attr_fields ufs_attrs[] = {
 	{"bDeviceTooHighTempBoundary", BYTE, URD, READ_ONLY, DEV},
 /*1A*/  {"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
 /*1B*/  {"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
-/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV},
-/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV},
-/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV},
-/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV},
+/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV | ARRAY},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -308,11 +308,12 @@ struct flag_fields ufs_flags[] = {
 	{"fPermanentlyDisableFw", (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
 	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
 /*D*/	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-/*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
-/*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
-/*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT),
-		(READ_NRML|WRITE_VLT), DEV},
-/*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV}
+/*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
+/*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
+/*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT), (READ_NRML|WRITE_VLT),
+		DEV | ARRAY},
+/*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV},
+/*12h*/ {"fHPBEn", (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 };
 
 static struct query_err_res query_err_status[] = {
@@ -525,6 +526,7 @@ void desc_help(char *tool_name)
 	printf("\t\t Set the input string after -w opt\n");
 	printf("\t\t for String descriptor\n");
 	printf("\n\t-i\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t Set selector parameter(default = 0)\n");
 	printf("\n\t-p\t path to ufs bsg device\n");
 }
 
@@ -555,6 +557,8 @@ void attribute_help(char *tool_name)
 	printf("\n\t-r\tread operation (default), for readable attribute(s)\n");
 	printf("\n\t-w\twrite operation (with hex data),"
 		" for writable attribute\n");
+	printf("\n\t-i\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t Set selector parameter(default = 0)\n");
 	printf("\n\t-p\tpath to ufs bsg device\n");
 	printf("\n\tExample - Read bBootLunEn\n"
 		"\t\t%s attr -t 0 -p /dev/ufs-bsg\n", tool_name);
@@ -584,6 +588,8 @@ void flag_help(char *tool_name)
 	printf("\n\t-e\t set flag operation\n");
 	printf("\n\t-c\t clear/reset flag operation\n");
 	printf("\n\t-o\t toggle flag operation\n");
+	printf("\n\t-i\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t Set selector parameter(default = 0)\n");
 	printf("\n\t-p\t path to ufs bsg device\n");
 	printf("\n\tExample - Read the bkops operation flag\n"
 		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
@@ -999,9 +1005,10 @@ static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			0, desc_buf_len, 0, data_buf);
 }
 
-static void check_read_desc_size(__u8 idn, __u8 *data_buf)
+static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 {
 	bool unoff = false;
+	int rc = OK;
 
 	switch (idn) {
 	case QUERY_DESC_IDN_DEVICE:
@@ -1039,9 +1046,19 @@ static void check_read_desc_size(__u8 idn, __u8 *data_buf)
 	break;
 	}
 
-	if (unoff)
-		print_warn("Unofficial %s desc size, len = 0x%x",
-			(char *)desc_text[idn], data_buf[0]);
+	if (unoff) {
+		int file_status;
+
+		rc = ERROR;
+		print_error("Unofficial %s desc size, len = 0x%x",
+			    (char *)desc_text[idn], data_buf[0]);
+		file_status = write_file("unofficial.dat", data_buf,
+					 data_buf[0]);
+		if (!file_status)
+			printf("\nunofficial.dat raw data file was created\n");
+	}
+
+	return rc;
 }
 
 int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
@@ -1055,7 +1072,7 @@ int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 			UPIU_QUERY_OPCODE_READ_DESC, idn, index, 0,
 			0, desc_buf_len, data_buf);
 	if (!rc)
-		check_read_desc_size(idn, data_buf);
+		rc = check_read_desc_size(idn, data_buf);
 
 	return rc;
 }
@@ -1079,7 +1096,6 @@ int do_attributes(struct tool_options *opt)
 		print_error("open");
 		return ERROR;
 	}
-
 	tmp = &ufs_attrs[opt->idn];
 
 	if (opt->opr == READ_ALL) {
@@ -1211,8 +1227,8 @@ int do_flags(struct tool_options *opt)
 					0xff);
 			} else {
 				/* on failuire make note and keep going */
-				print_error("%s flag read failed for flag %s",
-					tmp->name);
+				print_error("Read for flag %s failed",
+					    tmp->name);
 			}
 
 			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
