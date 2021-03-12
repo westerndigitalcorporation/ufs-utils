@@ -5,7 +5,7 @@
 #define UFS_CMNDS_H_
 
 #include "options.h"
-#include <asm-generic/int-ll64.h>
+#include <asm/types.h>
 
 
 enum field_width {

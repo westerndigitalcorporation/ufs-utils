@@ -12,7 +12,6 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
-#include <asm-generic/int-ll64.h>
 
 #include "ufs.h"
 #include "ufs_cmds.h"
