@@ -4,7 +4,6 @@
 
 #ifndef UFS_H_
 #define UFS_H_
-#include <asm-generic/int-ll64.h>
 #include "ioctl.h"
 #include "scsi_bsg_util.h"
 
