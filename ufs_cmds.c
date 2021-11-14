@@ -952,13 +952,15 @@ out:
 
 void print_attribute(struct attr_fields *attr, __u8 *attr_buffer)
 {
-	if (attr->width_in_bytes == BYTE)
+	if (!attr)
+		printf("%-26s := 0x%08x\n", "Attribute value",
+		       *(__u32 *)attr_buffer);
+	else if (attr->width_in_bytes == BYTE)
 		printf("%-26s := 0x%02x\n", attr->name, attr_buffer[0]);
 	else if (attr->width_in_bytes == WORD)
 		printf("%-26s := 0x%04x\n", attr->name, *(__u16 *)attr_buffer);
-	else if (attr->width_in_bytes == DWORD)
-		printf("%-26s := 0x%08x\n", attr->name,
-			be32toh(*(__u32 *)attr_buffer));
+	else
+		printf("%-26s := 0x%08x\n", attr->name, *(__u32 *)attr_buffer);
 }
 
 int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
@@ -1122,14 +1124,10 @@ int do_attributes(struct tool_options *opt)
 			att_idn++;
 		}
 	} else if (opt->opr == WRITE) {
-		if (tmp->acc_type == ACC_INVALID ||
-				tmp->acc_mode == READ_ONLY) {
-			print_error("%s Attribute is not writable", tmp->name);
-			rc = ERROR;
-			goto out;
-		}
-
 		attr_value = *(__u32 *)opt->data;
+		if (opt->idn > ARRAY_SIZE(ufs_attrs) ||
+		    tmp->acc_type == ACC_INVALID)
+			goto skip_width_check;
 		switch (tmp->width_in_bytes) {
 		case BYTE:
 			if (attr_value > 0xFF) {
@@ -1151,33 +1149,26 @@ int do_attributes(struct tool_options *opt)
 			/* avoid -switch warning - no need to check value */
 			break;
 		default:
-			print_error("Unsupported width %d",
-					tmp->width_in_bytes);
-			rc = ERROR;
-			goto out;
+			print_warn("Undefined attr %u", opt->idn);
 		}
-
+skip_width_check:
 		bsg_req.upiu_req.qr.value = htobe32(attr_value);
 		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 				UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
 				UPIU_QUERY_OPCODE_WRITE_ATTR, opt->idn,
 				opt->index, opt->selector, 0, 0, 0);
 	} else if (opt->opr == READ) {
-		if (tmp->acc_type == ACC_INVALID ||
-			tmp->acc_mode == WRITE_ONLY) {
-			print_error("%s attribute is not readable", tmp->name);
-			rc = ERROR;
-			goto out;
-		}
-
 		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 				UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 				UPIU_QUERY_OPCODE_READ_ATTR, opt->idn,
 				opt->index, opt->selector, 0, 0, 0);
 		if (rc == OK) {
 			attr_value = be32toh(bsg_rsp.upiu_rsp.qr.value);
-			print_attribute(tmp, (__u8 *)&attr_value);
+			if (opt->idn > ARRAY_SIZE(ufs_attrs) ||
+			    tmp->acc_type == ACC_INVALID)
+				tmp = 0;
 		}
+		print_attribute(tmp, (__u8 *)&attr_value);
 	}
 out:
 	close(fd);
@@ -1209,7 +1200,7 @@ int do_flags(struct tool_options *opt)
 	case READ_ALL:
 		flag_idn = QUERY_FLAG_IDN_FDEVICEINIT;
 		printf("UFS Device Flags:\n");
-		while (flag_idn < QUERY_FLAG_IDN_MAX) {
+		while (flag_idn < ARRAY_SIZE(ufs_flags)) {
 			tmp = &ufs_flags[flag_idn];
 			if (tmp->acc_type == ACC_INVALID ||
 				tmp->acc_type == UWRT) {
@@ -1226,7 +1217,7 @@ int do_flags(struct tool_options *opt)
 					be32toh(bsg_rsp.upiu_rsp.qr.value) &
 					0xff);
 			} else {
-				/* on failuire make note and keep going */
+				/* on failure make note and keep going */
 				print_error("Read for flag %s failed",
 					    tmp->name);
 			}
@@ -1238,47 +1229,38 @@ int do_flags(struct tool_options *opt)
 	case CLEAR_FLAG:
 	case TOGGLE_FLAG:
 	case SET_FLAG:
-		if (tmp->acc_type == ACC_INVALID ||
-			tmp->acc_mode == READ_ONLY) {
-			print_error("%s flag is not writable", tmp->name);
-			rc = ERROR;
-		} else if ((tmp->acc_mode & SET_ONLY) &&
-			opt->opr != SET_FLAG) {
-			print_error("Only set operation supported for %s flag",
-				tmp->name);
-			rc = ERROR;
-		} else {
-			if (opt->opr == CLEAR_FLAG)
-				opcode = UPIU_QUERY_OPCODE_CLEAR_FLAG;
-			else if (opt->opr == SET_FLAG)
-				opcode = UPIU_QUERY_OPCODE_SET_FLAG;
-			else if (opt->opr == TOGGLE_FLAG)
-				opcode = UPIU_QUERY_OPCODE_TOGGLE_FLAG;
-			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
-					UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
-					opcode, opt->idn, opt->index,
-					opt->selector, 0, 0, 0);
-			if (rc)
-				print_error("The operation for flag %s failed",
-					tmp->name);
-		}
+		if (opt->opr == CLEAR_FLAG)
+			opcode = UPIU_QUERY_OPCODE_CLEAR_FLAG;
+		else if (opt->opr == SET_FLAG)
+			opcode = UPIU_QUERY_OPCODE_SET_FLAG;
+		else if (opt->opr == TOGGLE_FLAG)
+			opcode = UPIU_QUERY_OPCODE_TOGGLE_FLAG;
+		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
+				 UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
+				 opcode, opt->idn, opt->index,
+				 opt->selector, 0, 0, 0);
+		if (rc)
+			print_error("The operation for flag %d failed",
+				    opt->idn);
 	break;
 	case READ:/*Read operation */
-		if (tmp->acc_type == ACC_INVALID || tmp->acc_type == UWRT) {
-			print_error("%s flag is not readable", tmp->name);
-			rc = ERROR;
-		} else {
-			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
-					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
-					UPIU_QUERY_OPCODE_READ_FLAG, opt->idn,
-					opt->index, opt->selector, 0, 0, 0);
-			if (rc == OK)
+		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
+				 UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
+				 UPIU_QUERY_OPCODE_READ_FLAG, opt->idn,
+				 opt->index, opt->selector, 0, 0, 0);
+		if (rc == OK) {
+			if (opt->idn < ARRAY_SIZE(ufs_flags))
 				printf("%-26s := 0x%01x\n", tmp->name,
 					be32toh(bsg_rsp.upiu_rsp.qr.value) &
 					0xff);
 			else
-				print_error("Read for flag %s failed", tmp->name);
+				printf("%-26s := 0x%01x\n", "Flag value",
+				       be32toh(bsg_rsp.upiu_rsp.qr.value) &
+				       0xff);
+		} else {
+			print_error("Read for flag %d failed", opt->idn);
 		}
+
 	break;
 	default:
 		print_error("Unsupported operation for %s flag", tmp->name);

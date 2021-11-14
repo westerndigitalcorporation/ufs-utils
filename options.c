@@ -260,16 +260,7 @@ static int verify_and_set_idn(struct tool_options *options)
 		}
 		break;
 	case ATTR_TYPE:
-		if (idn >= QUERY_ATTR_IDN_MAX) {
-			print_error("Invalid attr idn %d", idn);
-			goto out;
-		}
-		break;
 	case FLAG_TYPE:
-		if (idn > QUERY_FLAG_IDN_MAX) {
-			print_error("Invalid flag idn %d", idn);
-			goto out;
-		}
 		break;
 	case UIC_TYPE:
 		if (idn >= MAX_UNIPRO_IDN) {
