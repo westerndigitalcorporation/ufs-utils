@@ -1,12 +1,8 @@
-# UFS Tool ver 1.9 #
+# UFS Tool ver 1.10 #
 
 ## Description: ##
 a) Read/Write device flags, attributes & descriptors by
 using the BSG infrastructure in linux kernel (applied to 5.1 rc1)   
-Due to the issues in UFS BSG driver, the following patch have to be
-applied:   
-   https://lore.kernel.org/patchwork/patch/1076796/   
-   https://patchwork.kernel.org/patch/11011891/  
 b) Get/Set UNIPRO attributes   
 c) HMR - Host Manual Refresh functionality     
 The following options may work with the SCSI BSG device   
