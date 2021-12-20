@@ -346,8 +346,8 @@ out:
 }
 
 static int do_write_rpmb(int fd, const unsigned char *key, int input_fd,
-		__u32 cnt, __u16 start_addr, __u16 num_blocks,
-		__u8 region, __u8 sg_type)
+			 __u32 cnt, int start_addr, int num_blocks,
+			 __u8 region, __u8 sg_type)
 {
 	int ret = ERROR;
 	unsigned char mac[RPMB_MAC_SIZE];
