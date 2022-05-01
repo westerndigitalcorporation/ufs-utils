@@ -35,6 +35,7 @@ static int verify_region(struct tool_options *options);
 static int verify_and_set_hmr_method(struct tool_options *options);
 static int verify_and_set_hmr_unit(struct tool_options *options);
 static int verify_sg_struct(struct tool_options *options);
+static int verify_output_data(struct tool_options *options);
 
 #define MAX_ADDRESS 0xFFFF
 
@@ -48,9 +49,11 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 	static struct option long_opts[] = {
 		{"peer", no_argument, NULL, 'u'}, /* UFS device */
 		{"local", no_argument, NULL, 'l'}, /* UFS host*/
+		/* output file for the descriptor file store */
+		{"output_file", required_argument, NULL, 'D'},
 		{NULL, 0, NULL, 0}
 	};
-	static char *short_opts = "t:p:w:i:s:O:L:n:k:m:d:x:y:g:rocea";
+	static char *short_opts = "t:p:w:i:s:O:L:n:k:m:d:x:y:g:D:rocea";
 
 	while (-1 !=
 	      (curr_opt = getopt_long(opt_cnt, opt_arr, short_opts,
@@ -131,6 +134,9 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 			break;
 		case 'g':
 			rc = verify_sg_struct(options);
+			break;
+		case 'D':
+			rc = verify_output_data(options);
 			break;
 		default:
 			rc = -EINVAL;
@@ -823,6 +829,40 @@ verify_and_set_flag_operation(int opr_type, struct tool_options *options)
 	}
 
 	options->opr = opr_type;
+	return OK;
+
+out:
+	return ERROR;
+}
+
+static int verify_output_data(struct tool_options *options)
+{
+	int len;
+
+	if (options->data != 0) {
+		print_error("Duplicate Output path %d",
+			    options->data);
+		goto out;
+	}
+
+	if (optarg == 0) {
+		print_error("Output path missed");
+		goto out;
+	}
+
+	len = strlen(optarg);
+	if (len >= PATH_MAX) {
+		print_error("Output path is too long");
+		goto out;
+	}
+
+	options->data = (char *)calloc(1, len);
+	if (!options->data) {
+		print_error("Memory Allocation problem");
+		goto out;
+	}
+
+	strcpy(options->data, optarg);
 	return OK;
 
 out:

@@ -527,6 +527,7 @@ void desc_help(char *tool_name)
 	printf("\t\t for String descriptor\n");
 	printf("\n\t-i\t Set index parameter(default = 0)\n");
 	printf("\n\t-s\t Set selector parameter(default = 0)\n");
+	printf("\n\t-D/--output_file Set descriptor file output path\n");
 	printf("\n\t-p\t path to ufs bsg device\n");
 }
 
@@ -794,8 +795,6 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 	__u8 conf_desc_buf[QUERY_DESC_CONFIGURAION_MAX_SIZE] = {0};
 	int offset, i;
 	int data_fd = INVALID;
-	char *filename_header = "config_desc_data_ind_%d";
-	char output_file[30] = {0};
 
 	if (opt == WRITE) {
 		data_fd = open(data_file, O_RDONLY);
@@ -859,24 +858,24 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 				lun_off);
 			offset = offset  + lun_off;
 		}
-		sprintf(output_file, filename_header, index);
-		data_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC,
-				S_IRUSR | S_IWUSR);
-		if (data_fd < 0) {
-			perror("can't open output file");
-			return ERROR;
-		}
+		if (data_file) {
+			data_fd = open(data_file, O_WRONLY | O_CREAT | O_TRUNC,
+				       S_IRUSR | S_IWUSR);
+			if (data_fd < 0) {
+				perror("can't open output file");
+				return ERROR;
+			}
 
-		rc = write(data_fd, conf_desc_buf, conf_desc_buf[0]);
-		if (rc <= 0) {
-			print_error("Could not write config data into %s file",
-				output_file);
-			rc = ERROR;
-			goto out;
-		}
+			rc = write(data_fd, conf_desc_buf, conf_desc_buf[0]);
+			if (rc <= 0) {
+				print_error("Could not write config data");
+				rc = ERROR;
+				goto out;
+			}
 
-		printf("Config Descriptor was written into %s file\n",
-			output_file);
+			printf("Config Descriptor was written into %s file\n",
+			       data_file);
+		}
 	}
 out:
 	if (data_fd != INVALID)
@@ -914,11 +913,7 @@ int do_desc(struct tool_options *opt)
 		rc = do_device_desc(fd, NULL);
 		break;
 	case QUERY_DESC_IDN_CONFIGURAION:
-		if (opt->opr == READ)
-			rc = do_conf_desc(fd, opt->opr, opt->index, NULL);
-		else
-			rc = do_conf_desc(fd, opt->opr, opt->index,
-					(char *)opt->data);
+		rc = do_conf_desc(fd, opt->opr, opt->index, (char *)opt->data);
 		break;
 	case QUERY_DESC_IDN_UNIT:
 		rc = do_unit_desc(fd, opt->index);
