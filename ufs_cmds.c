@@ -256,7 +256,7 @@ struct attr_fields ufs_attrs[] = {
 	{"bRefClkFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"bConfigDescrLock", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
 	{"bMaxNumOfRTT", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-	{"wExceptionEventControl", WORD, URD, READ_NRML, DEV},
+	{"wExceptionEventControl", WORD, URD, (READ_NRML|WRITE_VLT), DEV},
 	{"wExceptionEventStatus", WORD, URD, READ_ONLY, DEV},
 	{"dSecondsPassed", DWORD, UWRT, WRITE_ONLY, DEV},
 	{"wContextConf", WORD, (URD|UWRT), (READ_NRML|WRITE_VLT), ARRAY},
