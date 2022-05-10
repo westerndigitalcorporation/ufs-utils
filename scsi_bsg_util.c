@@ -83,7 +83,7 @@ int write_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id, __u32 buf_offset,
 	unsigned char write_buf_cmd [WRITE_BUF_CMDLEN] = {
 		WRITE_BUFFER_CMD, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-	if (fd < 0 || buf == NULL || byte_count <= 0) {
+	if (fd < 0 || byte_count < 0) {
 		perror("scsi write cmd: wrong parameters");
 		return -EINVAL;
 	}
@@ -110,7 +110,7 @@ int read_buffer(int fd, __u8 *buf, __u8 mode, __u8 buf_id,
 	unsigned char read_buf_cmd[READ_BUF_CMDLEN] = {READ_BUFFER_CMD,
 		0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-	if (fd < 0 || buf == NULL || byte_count <= 0) {
+	if (fd < 0 || byte_count < 0) {
 		print_error("scsi read cmd: wrong parameters");
 		return -EINVAL;
 	}
