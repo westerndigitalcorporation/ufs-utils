@@ -596,6 +596,13 @@ void flag_help(char *tool_name)
 		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
 }
 
+void ufs_spec_ver_help(char *tool_name)
+{
+	printf("\n Get UFS spec version usage:\n");
+	printf("\n\t%s spec_version [-p] <device_path> \n", tool_name);
+	printf("\n\t-p\tpath to ufs bsg device\n");
+}
+
 int do_device_desc(int fd, __u8 *desc_buff)
 {
 	struct ufs_bsg_request bsg_req = {0};
@@ -941,6 +948,46 @@ int do_desc(struct tool_options *opt)
 	}
 
 out:
+	close(fd);
+	return rc;
+}
+
+int do_get_ufs_spec_ver(struct tool_options *opt)
+{
+	int fd;
+	int rc = OK;
+	int oflag = O_RDWR;
+	__u8 dev_desc[QUERY_DESC_DEVICE_MAX_SIZE] = {0};
+	__u16 *ufs_spec;
+	__u16 spec_value;
+	__u8 maj_vers, minor_ver, vers_suf = 0;
+	struct desc_field_offset *tmp = &device_desc_field_name[0x10];
+
+	if (opt->opr == READ_ALL || opt->opr == READ)
+		oflag = O_RDONLY;
+
+	fd = open(opt->path, oflag);
+	if (fd < 0) {
+		print_error("open");
+		return ERROR;
+	}
+
+	rc = do_device_desc(fd, (__u8 *)&dev_desc);
+	if (rc != OK)
+		print_error("Could not read device descriptor in order to "
+			    "get device ufs spec version\n");
+	else {
+		ufs_spec = (__u16 *)&dev_desc[tmp->offset];
+		spec_value = be16toh(*ufs_spec);
+		maj_vers = spec_value >> 8 & 0xff;
+		minor_ver = spec_value >> 4 & 0x0f;
+		vers_suf = spec_value & 0x0f;
+		if (vers_suf)
+			printf("%d.%d%d\n", maj_vers, minor_ver, vers_suf);
+		else
+			printf("%d.%d\n", maj_vers, minor_ver);
+	}
+
 	close(fd);
 	return rc;
 }

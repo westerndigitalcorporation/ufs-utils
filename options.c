@@ -605,10 +605,11 @@ static int verify_arg_and_set_default(struct tool_options *options)
 		goto out;
 	}
 	if (options->config_type_inx != ERR_HIST_TYPE &&
-			options->config_type_inx != VENDOR_BUFFER_TYPE &&
-			options->config_type_inx != HMR_TYPE &&
-			options->opr != READ_ALL &&
-			options->idn == INVALID) {
+	    options->config_type_inx != VENDOR_BUFFER_TYPE &&
+	    options->config_type_inx != HMR_TYPE &&
+	    options->config_type_inx != SPEC_VERSION &&
+	    options->opr != READ_ALL &&
+	    options->idn == INVALID) {
 		print_error("The type idn is missed");
 		goto out;
 	}
