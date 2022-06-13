@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <dirent.h>
 
 #include "ufs.h"
 #include "ufs_cmds.h"
@@ -364,6 +365,7 @@ static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 			__u16 desc_buf_len, __u8 *data_buf);
 static void query_response_error(__u8 opcode, __u8 idn);
+static int find_bsg_device(char *path, int *counter);
 
 static void print_power_desc_icc(__u8 *desc_buf, int vccIndex)
 {
@@ -601,6 +603,12 @@ void ufs_spec_ver_help(char *tool_name)
 	printf("\n Get UFS spec version usage:\n");
 	printf("\n\t%s spec_version [-p] <device_path> \n", tool_name);
 	printf("\n\t-p\tpath to ufs bsg device\n");
+}
+
+void ufs_bsg_list_help(char *tool_name)
+{
+	printf("\n Find UFS BSG device list usage:\n");
+	printf("\n\t%s list_bsg\n", tool_name);
 }
 
 int do_device_desc(int fd, __u8 *desc_buff)
@@ -973,10 +981,10 @@ int do_get_ufs_spec_ver(struct tool_options *opt)
 	}
 
 	rc = do_device_desc(fd, (__u8 *)&dev_desc);
-	if (rc != OK)
+	if (rc != OK) {
 		print_error("Could not read device descriptor in order to "
 			    "get device ufs spec version\n");
-	else {
+	} else {
 		ufs_spec = (__u16 *)&dev_desc[tmp->offset];
 		spec_value = be16toh(*ufs_spec);
 		maj_vers = spec_value >> 8 & 0xff;
@@ -989,6 +997,17 @@ int do_get_ufs_spec_ver(struct tool_options *opt)
 	}
 
 	close(fd);
+	return rc;
+}
+
+int do_get_ufs_bsg_list(struct tool_options *opt)
+{
+	int rc;
+	int counter = 0;
+
+	rc = find_bsg_device("/dev", &counter);
+	if (!counter)
+		printf("Didn't found UFS BSG device\n");
 	return rc;
 }
 
@@ -1036,6 +1055,43 @@ int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 		rc = ERROR;
 	}
 out:
+	return rc;
+}
+
+static int find_bsg_device(char *path, int *counter)
+{
+	struct dirent *files;
+	DIR *dir = 0;
+	int rc = OK;
+	size_t str_size;
+	char *full_path;
+
+	dir = opendir(path);
+	if (!dir) {
+		perror("Directory cannot be opened!");
+		return ERROR;
+	}
+
+	while ((files = readdir(dir)) != NULL) {
+		if (strstr(files->d_name, "ufs-bsg") != 0) {
+			printf("%s/%s\n", path, files->d_name);
+			(*counter)++;
+		}
+
+		if (files->d_type == DT_DIR) {
+			if ((strcmp(files->d_name, ".") != 0) &&
+			    (strcmp(files->d_name, "..") != 0)) {
+				str_size = strlen(path) + strlen(files->d_name);
+				full_path = calloc(1, str_size + 2);
+				sprintf(full_path, "%s/%s", path,
+					files->d_name);
+				rc = find_bsg_device(full_path, counter);
+				if (full_path)
+					free(full_path);
+			}
+		}
+	}
+	closedir(dir);
 	return rc;
 }
 

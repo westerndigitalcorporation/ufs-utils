@@ -161,7 +161,8 @@ enum ufs_cong_type {
 	VENDOR_BUFFER_TYPE,
 	RPMB_CMD_TYPE,
 	HMR_TYPE,
-	SPEC_VERSION
+	SPEC_VERSION,
+	BSG_LIST_TYPE
 };
 
 /* UTP UPIU Transaction Codes Initiator to Target */

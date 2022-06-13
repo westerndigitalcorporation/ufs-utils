@@ -21,7 +21,7 @@
 #include "ufs_rpmb.h"
 #include "ufs_hmr.h"
 
-#define UFS_BSG_UTIL_VERSION	"2.11.1"
+#define UFS_BSG_UTIL_VERSION	"3.11.1"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -44,6 +44,7 @@ static struct tool_command commands[] = {
 	{ do_rpmb, "rpmb", RPMB_CMD_TYPE},
 	{ do_hmr, "hmr", HMR_TYPE},
 	{ do_get_ufs_spec_ver, "spec_version", SPEC_VERSION},
+	{ do_get_ufs_bsg_list, "list_bsg", BSG_LIST_TYPE},
 	{ 0, 0, 0}
 };
 
@@ -65,7 +66,7 @@ static void help(char *np)
 	char help_str[256] = {0};
 
 	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor | "
-		"rpmb | hmr | spec_version>");
+		"rpmb | hmr | spec_version | list_bsg>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
@@ -89,10 +90,21 @@ static int parse_args(int argc, char **argv, command_function *func,
 	struct tool_command *cp;
 	char *prgname = get_prgname(argv[0]);
 
-	if (argc == 2 && !strcmp(argv[1], "-v")) {
-		printf("\n\t %s ver: %s\n", prgname, UFS_BSG_UTIL_VERSION);
-		goto out;
-	} else if (argc <= 2) {
+	if (argc == 2) {
+		if (!strcmp(argv[1], "-v")) {
+			printf("\n\t %s ver: %s\n", prgname,
+			       UFS_BSG_UTIL_VERSION);
+			goto out;
+		} else if (!strcmp(argv[1], "list_bsg")) {
+			rc = do_get_ufs_bsg_list(NULL);
+			goto out;
+		} else {
+			help(prgname);
+			goto out;
+		}
+	}
+
+	if (argc < 2) {
 		help(prgname);
 		goto out;
 	}
@@ -113,7 +125,7 @@ static int parse_args(int argc, char **argv, command_function *func,
 	}
 
 	if (argc == 3 &&
-		(!strcmp(argv[2], "-h") || !strcmp(argv[2], "--help"))) {
+	   (!strcmp(argv[2], "-h") || !strcmp(argv[2], "--help"))) {
 		print_command_help(prgname, options->config_type_inx);
 		*func = 0;
 		goto out;
@@ -202,6 +214,9 @@ void print_command_help(char *prgname, int config_type)
 		break;
 	case SPEC_VERSION:
 		ufs_spec_ver_help(prgname);
+		break;
+	case BSG_LIST_TYPE:
+		ufs_bsg_list_help(prgname);
 		break;
 	default:
 		print_error("Unsupported cmd type");
