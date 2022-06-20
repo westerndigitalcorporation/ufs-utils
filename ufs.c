@@ -22,6 +22,7 @@
 #include "ufs_hmr.h"
 
 #define UFS_BSG_UTIL_VERSION	"3.11.2"
+
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -84,7 +85,7 @@ static void initialized_options(struct tool_options *options)
 }
 
 static int parse_args(int argc, char **argv, command_function *func,
-		struct tool_options *options)
+		      struct tool_options *options)
 {
 	int rc = OK;
 	struct tool_command *cp;

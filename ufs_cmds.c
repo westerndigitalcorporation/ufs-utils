@@ -403,8 +403,70 @@ static void print_vendor_info(__u8 *desc_buf, int len)
 	printf("\n");
 }
 
-void print_descriptors(char *desc_str, __u8 *desc_buf,
-		struct desc_field_offset *desc_array, int arr_size)
+static void print_descriptors_json(__u8 *desc_buf,
+				   struct desc_field_offset *desc_array,
+				   int arr_size)
+{
+	int i;
+	struct desc_field_offset *tmp;
+	char str_buf[STR_BUF_LEN];
+	int offset = 0;
+
+	printf("%s\n", "{");
+
+	for (i = 0; offset < arr_size; ++i) {
+		tmp = &desc_array[i];
+		offset = tmp->offset + tmp->width_in_bytes;
+
+		if (tmp->width_in_bytes == BYTE) {
+			printf("%c%s%c:%d,\n", '"', tmp->name, '"',
+			       desc_buf[tmp->offset]);
+		} else if (tmp->width_in_bytes == WORD) {
+			printf("%c%s%c:%d,\n", '"', tmp->name, '"',
+			       be16toh(*(__u16 *)&desc_buf[tmp->offset]));
+		} else if (tmp->width_in_bytes == DWORD) {
+			printf("%c%s%c:%d,\n", '"', tmp->name, '"',
+			       be32toh(*(__u32 *)&desc_buf[tmp->offset]));
+		} else if (tmp->width_in_bytes == DDWORD) {
+			printf("%c%s%c:%ld,\n", '"', tmp->name, '"',
+			       be64toh(*(__u64 *)&desc_buf[tmp->offset]));
+		} else if ((tmp->width_in_bytes > DDWORD) &&
+				tmp->width_in_bytes < STR_BUF_LEN) {
+			if (!strcmp(tmp->name, "VendorPropInfo")) {
+				printf("%c%s%c:", '"', tmp->name, '"');
+				print_vendor_info(&desc_buf[tmp->offset],
+						  tmp->width_in_bytes);
+			} else {
+				memset(str_buf, 0, STR_BUF_LEN);
+				memcpy(str_buf, &desc_buf[tmp->offset],
+				       tmp->width_in_bytes);
+				printf("%c%s%c:%s,\n", '"', tmp->name, '"',
+				       str_buf);
+			}
+		} else {
+			printf("Err %s[Byte offset 0x%x] Wrong Width = %d\n",
+			       tmp->name, tmp->offset, tmp->width_in_bytes);
+		}
+	}
+
+	printf("%s\n", "}");
+}
+
+static void print_descriptors_raw(__u8 *desc_buf, int arr_size)
+{
+	int i;
+
+	for (i = 0; i < arr_size; i++) {
+		printf("%02x ", desc_buf[i]);
+		if ((i + 1) % 16 == 0)
+			printf("\n");
+	}
+	printf("\n");
+}
+
+static void print_descriptors_verbose(char *desc_str, __u8 *desc_buf,
+				      struct desc_field_offset *desc_array,
+				      int arr_size)
 {
 	int i;
 	struct desc_field_offset *tmp;
@@ -452,6 +514,97 @@ void print_descriptors(char *desc_str, __u8 *desc_buf,
 				desc_str, tmp->offset, tmp->name,
 				tmp->width_in_bytes);
 		}
+	}
+}
+
+static void print_descriptors(char *desc_str, __u8 *desc_buf,
+			      struct desc_field_offset *desc_array,
+			      int arr_size)
+{
+	switch (gl_pr_type) {
+	case JSON:
+		print_descriptors_json(desc_buf, desc_array, arr_size);
+		break;
+	case RAW_VALUE:
+		print_descriptors_raw(desc_buf, arr_size);
+		break;
+	default:
+		print_descriptors_verbose(desc_str, desc_buf, desc_array,
+					  arr_size);
+	}
+}
+
+static void print_attribute_verbose(struct attr_fields *attr, __u8 *attr_buffer)
+{
+	if (!attr)
+		printf("%-26s := 0x%08x\n", "Attribute value",
+		       *(__u32 *)attr_buffer);
+	else if (attr->width_in_bytes == BYTE)
+		printf("%-26s := 0x%02x\n", attr->name, attr_buffer[0]);
+	else if (attr->width_in_bytes == WORD)
+		printf("%-26s := 0x%04x\n", attr->name, *(__u16 *)attr_buffer);
+	else
+		printf("%-26s := 0x%08x\n", attr->name, *(__u32 *)attr_buffer);
+}
+
+static void print_attribute_raw(struct attr_fields *attr, __u8 *attr_buffer)
+{
+	if (!attr)
+		printf("0x%08x\n", *(__u32 *)attr_buffer);
+	else if (attr->width_in_bytes == BYTE)
+		printf("0x%02x\n", attr_buffer[0]);
+	else if (attr->width_in_bytes == WORD)
+		printf("0x%04x\n", *(__u16 *)attr_buffer);
+	else
+		printf("0x%08x\n", *(__u32 *)attr_buffer);
+}
+
+static void print_attribute_json(struct attr_fields *attr, __u8 *attr_buffer)
+{
+	printf("{\n");
+
+	if (!attr)
+		printf("%c%s%c:%d\n", '"', "Attribute value", '"',
+		       *(__u32 *)attr_buffer);
+	else if (attr->width_in_bytes == BYTE)
+		printf("%c%s%c:%d\n", '"', attr->name, '"', attr_buffer[0]);
+	else if (attr->width_in_bytes == WORD)
+		printf("%c%s%c:%d\n", '"', attr->name, '"',
+		       *(__u16 *)attr_buffer);
+	else
+		printf("%c%s%c:%d\n", '"', attr->name, '"',
+		       *(__u32 *)attr_buffer);
+
+	printf("}\n");
+}
+
+static void print_attribute(struct attr_fields *attr, __u8 *attr_buffer)
+{
+	switch (gl_pr_type) {
+	case JSON:
+		print_attribute_json(attr, attr_buffer);
+		break;
+	case RAW_VALUE:
+		print_attribute_raw(attr, attr_buffer);
+		break;
+	default:
+		print_attribute_verbose(attr, attr_buffer);
+	}
+}
+
+static void print_flag(char *name, __u8 value)
+{
+	switch (gl_pr_type) {
+	case JSON:
+		printf("%s\n", "{");
+		printf("%c%s%c:%d\n", '"', name, '"', value);
+		printf("%s", "}\n");
+		break;
+	case RAW_VALUE:
+		printf("0x%02x\n", value);
+		break;
+	default:
+		printf("%-26s := 0x%01x\n", name, value);
 	}
 }
 
@@ -508,29 +661,30 @@ void desc_help(char *tool_name)
 	printf("\n Descriptor command usage:\n");
 	printf("\n\t%s desc [-t] <descriptor idn> [-a|-r|-w] <data> [-p] "
 		"<device_path> \n", tool_name);
-	printf("\n\t-t\t description type idn\n"
-		"\t\t Available description types based on UFS ver 3.1 :\n"
-		"\t\t\t0:\tDevice\n"
-		"\t\t\t1:\tConfiguration\n"
-		"\t\t\t2:\tUnit\n"
-		"\t\t\t3:\tRFU\n"
-		"\t\t\t4:\tInterconnect\n"
-		"\t\t\t5:\tString\n"
-		"\t\t\t6:\tRFU\n"
-		"\t\t\t7:\tGeometry\n"
-		"\t\t\t8:\tPower\n"
-		"\t\t\t9:\tDevice Health\n"
-		"\t\t\t10..255: RFU\n");
-	printf("\n\t-r\t read operation (default) for readable descriptors\n");
-	printf("\n\t-w\t write operation , for writable descriptors\n");
-	printf("\t\t Set the input configuration file after -w opt\n");
-	printf("\t\t for Configuration descriptor\n");
-	printf("\t\t Set the input string after -w opt\n");
-	printf("\t\t for String descriptor\n");
-	printf("\n\t-i\t Set index parameter(default = 0)\n");
-	printf("\n\t-s\t Set selector parameter(default = 0)\n");
+	printf("\n\t-t\t\t description type idn\n"
+		"\t\t\t Available description types based on UFS ver 3.1 :\n"
+		"\t\t\t 0:\tDevice\n"
+		"\t\t\t 1:\tConfiguration\n"
+		"\t\t\t 2:\tUnit\n"
+		"\t\t\t 3:\tRFU\n"
+		"\t\t\t 4:\tInterconnect\n"
+		"\t\t\t 5:\tString\n"
+		"\t\t\t 6:\tRFU\n"
+		"\t\t\t 7:\tGeometry\n"
+		"\t\t\t 8:\tPower\n"
+		"\t\t\t 9:\tDevice Health\n"
+		"\t\t\t 10..255: RFU\n");
+	printf("\n\t-r\t\t read operation (default) for readable descriptors\n");
+	printf("\n\t-w\t\t write operation , for writable descriptors\n");
+	printf("\t\t\t Set the input configuration file after -w opt\n");
+	printf("\t\t\t for Configuration descriptor\n");
+	printf("\t\t\t Set the input string after -w opt\n");
+	printf("\t\t\t for String descriptor\n");
+	printf("\n\t-i\t\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t\t Set selector parameter(default = 0)\n");
 	printf("\n\t-D/--output_file Set descriptor file output path\n");
-	printf("\n\t-p\t path to ufs bsg device\n");
+	printf("\n\t-P/--output_mode Set print output [raw, json, verbose (default)]\n");
+	printf("\n\t-p\t\t path to ufs bsg device\n");
 }
 
 void attribute_help(char *tool_name)
@@ -555,14 +709,13 @@ void attribute_help(char *tool_name)
 		memset(access_string, 0, 100);
 	}
 
-	printf("\n\t-a\tread and print all readable attributes"
-		" for the device\n");
-	printf("\n\t-r\tread operation (default), for readable attribute(s)\n");
-	printf("\n\t-w\twrite operation (with hex data),"
-		" for writable attribute\n");
-	printf("\n\t-i\t Set index parameter(default = 0)\n");
-	printf("\n\t-s\t Set selector parameter(default = 0)\n");
-	printf("\n\t-p\tpath to ufs bsg device\n");
+	printf("\n\t-a\t\t read and print all readable attributes for the device\n");
+	printf("\n\t-r\t\t read operation (default), for readable attribute(s)\n");
+	printf("\n\t-w\t\t write operation (with hex data), for writable attribute\n");
+	printf("\n\t-i\t\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t\t Set selector parameter(default = 0)\n");
+	printf("\n\t-p\t\t path to ufs bsg device\n");
+	printf("\n\t-P/--output_mode Set print output [raw, json, verbose (default)]\n");
 	printf("\n\tExample - Read bBootLunEn\n"
 		"\t\t%s attr -t 0 -p /dev/ufs-bsg\n", tool_name);
 }
@@ -586,14 +739,15 @@ void flag_help(char *tool_name)
 		current_flag++;
 		memset(access_string, 0, 100);
 	}
-	printf("\n\t-a\t read and print all readable flags for the device\n");
-	printf("\n\t-r\t read operation (default), for readable flag(s)\n");
-	printf("\n\t-e\t set flag operation\n");
-	printf("\n\t-c\t clear/reset flag operation\n");
-	printf("\n\t-o\t toggle flag operation\n");
-	printf("\n\t-i\t Set index parameter(default = 0)\n");
-	printf("\n\t-s\t Set selector parameter(default = 0)\n");
-	printf("\n\t-p\t path to ufs bsg device\n");
+	printf("\n\t-a\t\t read and print all readable flags for the device\n");
+	printf("\n\t-r\t\t read operation (default), for readable flag(s)\n");
+	printf("\n\t-e\t\t set flag operation\n");
+	printf("\n\t-c\t\t clear/reset flag operation\n");
+	printf("\n\t-o\t\t toggle flag operation\n");
+	printf("\n\t-i\t\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t\t Set selector parameter(default = 0)\n");
+	printf("\n\t-p\t\t path to ufs bsg device\n");
+	printf("\n\t-P/--output_mode Set print output [raw, json, verbose (default)]\n");
 	printf("\n\tExample - Read the bkops operation flag\n"
 		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
 }
@@ -627,7 +781,7 @@ int do_device_desc(int fd, __u8 *desc_buff)
 	}
 	if (!desc_buff)
 		print_descriptors("Device Descriptor", data_buf,
-				device_desc_field_name, data_buf[0]);
+				  device_desc_field_name, data_buf[0]);
 	else
 		memcpy(desc_buff, data_buf, data_buf[0]);
 
@@ -866,7 +1020,8 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 
 		offset = head_off;
 		for (i = 0 ; i < 8; i++) {
-			printf("Config %d Unit Descriptor:\n", i);
+			if (gl_pr_type == VERBOSE)
+				printf("Config %d Unit Descriptor:\n", i);
 			print_descriptors("Config Descriptor:",
 				conf_desc_buf + offset,
 				device_config_unit_desc_field_name,
@@ -1009,19 +1164,6 @@ int do_get_ufs_bsg_list(struct tool_options *opt)
 	if (!counter)
 		printf("Didn't found UFS BSG device\n");
 	return rc;
-}
-
-void print_attribute(struct attr_fields *attr, __u8 *attr_buffer)
-{
-	if (!attr)
-		printf("%-26s := 0x%08x\n", "Attribute value",
-		       *(__u32 *)attr_buffer);
-	else if (attr->width_in_bytes == BYTE)
-		printf("%-26s := 0x%02x\n", attr->name, attr_buffer[0]);
-	else if (attr->width_in_bytes == WORD)
-		printf("%-26s := 0x%04x\n", attr->name, *(__u16 *)attr_buffer);
-	else
-		printf("%-26s := 0x%08x\n", attr->name, *(__u32 *)attr_buffer);
 }
 
 int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
@@ -1277,7 +1419,7 @@ int do_flags(struct tool_options *opt)
 {
 	int fd;
 	int rc = OK;
-	__u8 opcode, flag_idn;
+	__u8 opcode, flag_idn, value;
 	struct flag_fields *tmp;
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
@@ -1311,9 +1453,9 @@ int do_flags(struct tool_options *opt)
 					UPIU_QUERY_OPCODE_READ_FLAG, flag_idn,
 					opt->index, opt->selector, 0, 0, 0);
 			if (rc == OK) {
-				printf("%-26s := 0x%01x\n", tmp->name,
-					be32toh(bsg_rsp.upiu_rsp.qr.value) &
-					0xff);
+				value = be32toh(bsg_rsp.upiu_rsp.qr.value) &
+						0xff;
+				print_flag(tmp->name, value);
 			} else {
 				/* on failure make note and keep going */
 				print_error("Read for flag %s failed",
@@ -1347,14 +1489,11 @@ int do_flags(struct tool_options *opt)
 				 UPIU_QUERY_OPCODE_READ_FLAG, opt->idn,
 				 opt->index, opt->selector, 0, 0, 0);
 		if (rc == OK) {
+			value = be32toh(bsg_rsp.upiu_rsp.qr.value) & 0xff;
 			if (opt->idn < ARRAY_SIZE(ufs_flags))
-				printf("%-26s := 0x%01x\n", tmp->name,
-					be32toh(bsg_rsp.upiu_rsp.qr.value) &
-					0xff);
+				print_flag(tmp->name, value);
 			else
-				printf("%-26s := 0x%01x\n", "Flag value",
-				       be32toh(bsg_rsp.upiu_rsp.qr.value) &
-				       0xff);
+				print_flag("Flag value", value);
 		} else {
 			print_error("Read for flag %d failed", opt->idn);
 		}
