@@ -21,7 +21,7 @@
 #include "ufs_rpmb.h"
 #include "ufs_hmr.h"
 
-#define UFS_BSG_UTIL_VERSION	"3.11.1"
+#define UFS_BSG_UTIL_VERSION	"3.11.2"
 typedef int (*command_function)(struct tool_options *opt);
 
 struct tool_command {
@@ -164,11 +164,11 @@ void print_error(const char *msg, ...)
 {
 	va_list args;
 
-	printf("\n Err: ");
+	fprintf(stderr, "\nErr: ");
 	va_start(args, msg);
-	vprintf(msg, args);
+	vfprintf(stderr, msg, args);
 	va_end(args);
-	printf("\n");
+	fprintf(stderr, "\n");
 }
 
 void print_warn(const char *msg, ...)
@@ -179,7 +179,7 @@ void print_warn(const char *msg, ...)
 	fprintf(stderr, "\nWARN: ");
 	vfprintf(stderr, msg, args);
 	va_end(args);
-	printf("\n");
+	fprintf(stderr, "\n");
 }
 
 void print_command_help(char *prgname, int config_type)

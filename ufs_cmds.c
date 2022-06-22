@@ -499,8 +499,8 @@ static void query_response_error(__u8 opcode, __u8 idn)
 {
 	__u8 query_response_inx = opcode & 0x0F;
 
-	printf("\n %s, for idn 0x%02x\n",
-		query_err_status[query_response_inx].name, idn);
+	print_error("%s, for idn 0x%02x",
+		    query_err_status[query_response_inx].name, idn);
 }
 
 void desc_help(char *tool_name)
