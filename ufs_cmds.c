@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <dirent.h>
 
 #include "ufs.h"
 #include "ufs_cmds.h"
@@ -364,6 +365,7 @@ static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 			__u16 desc_buf_len, __u8 *data_buf);
 static void query_response_error(__u8 opcode, __u8 idn);
+static int find_bsg_device(char *path, int *counter);
 
 static void print_power_desc_icc(__u8 *desc_buf, int vccIndex)
 {
@@ -497,8 +499,8 @@ static void query_response_error(__u8 opcode, __u8 idn)
 {
 	__u8 query_response_inx = opcode & 0x0F;
 
-	printf("\n %s, for idn 0x%02x\n",
-		query_err_status[query_response_inx].name, idn);
+	print_error("%s, for idn 0x%02x",
+		    query_err_status[query_response_inx].name, idn);
 }
 
 void desc_help(char *tool_name)
@@ -594,6 +596,19 @@ void flag_help(char *tool_name)
 	printf("\n\t-p\t path to ufs bsg device\n");
 	printf("\n\tExample - Read the bkops operation flag\n"
 		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
+}
+
+void ufs_spec_ver_help(char *tool_name)
+{
+	printf("\n Get UFS spec version usage:\n");
+	printf("\n\t%s spec_version [-p] <device_path> \n", tool_name);
+	printf("\n\t-p\tpath to ufs bsg device\n");
+}
+
+void ufs_bsg_list_help(char *tool_name)
+{
+	printf("\n Find UFS BSG device list usage:\n");
+	printf("\n\t%s list_bsg\n", tool_name);
 }
 
 int do_device_desc(int fd, __u8 *desc_buff)
@@ -945,6 +960,57 @@ out:
 	return rc;
 }
 
+int do_get_ufs_spec_ver(struct tool_options *opt)
+{
+	int fd;
+	int rc = OK;
+	int oflag = O_RDWR;
+	__u8 dev_desc[QUERY_DESC_DEVICE_MAX_SIZE] = {0};
+	__u16 *ufs_spec;
+	__u16 spec_value;
+	__u8 maj_vers, minor_ver, vers_suf = 0;
+	struct desc_field_offset *tmp = &device_desc_field_name[0x10];
+
+	if (opt->opr == READ_ALL || opt->opr == READ)
+		oflag = O_RDONLY;
+
+	fd = open(opt->path, oflag);
+	if (fd < 0) {
+		print_error("open");
+		return ERROR;
+	}
+
+	rc = do_device_desc(fd, (__u8 *)&dev_desc);
+	if (rc != OK) {
+		print_error("Could not read device descriptor in order to "
+			    "get device ufs spec version\n");
+	} else {
+		ufs_spec = (__u16 *)&dev_desc[tmp->offset];
+		spec_value = be16toh(*ufs_spec);
+		maj_vers = spec_value >> 8 & 0xff;
+		minor_ver = spec_value >> 4 & 0x0f;
+		vers_suf = spec_value & 0x0f;
+		if (vers_suf)
+			printf("%d.%d%d\n", maj_vers, minor_ver, vers_suf);
+		else
+			printf("%d.%d\n", maj_vers, minor_ver);
+	}
+
+	close(fd);
+	return rc;
+}
+
+int do_get_ufs_bsg_list(struct tool_options *opt)
+{
+	int rc;
+	int counter = 0;
+
+	rc = find_bsg_device("/dev", &counter);
+	if (!counter)
+		printf("Didn't found UFS BSG device\n");
+	return rc;
+}
+
 void print_attribute(struct attr_fields *attr, __u8 *attr_buffer)
 {
 	if (!attr)
@@ -989,6 +1055,43 @@ int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 		rc = ERROR;
 	}
 out:
+	return rc;
+}
+
+static int find_bsg_device(char *path, int *counter)
+{
+	struct dirent *files;
+	DIR *dir = 0;
+	int rc = OK;
+	size_t str_size;
+	char *full_path;
+
+	dir = opendir(path);
+	if (!dir) {
+		perror("Directory cannot be opened!");
+		return ERROR;
+	}
+
+	while ((files = readdir(dir)) != NULL) {
+		if (strstr(files->d_name, "ufs-bsg") != 0) {
+			printf("%s/%s\n", path, files->d_name);
+			(*counter)++;
+		}
+
+		if (files->d_type == DT_DIR) {
+			if ((strcmp(files->d_name, ".") != 0) &&
+			    (strcmp(files->d_name, "..") != 0)) {
+				str_size = strlen(path) + strlen(files->d_name);
+				full_path = calloc(1, str_size + 2);
+				sprintf(full_path, "%s/%s", path,
+					files->d_name);
+				rc = find_bsg_device(full_path, counter);
+				if (full_path)
+					free(full_path);
+			}
+		}
+	}
+	closedir(dir);
 	return rc;
 }
 
