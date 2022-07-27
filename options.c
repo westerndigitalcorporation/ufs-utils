@@ -767,10 +767,8 @@ static int verify_write(struct tool_options *options)
 		}
 
 		options->data = (char *)malloc(QUERY_DESC_STRING_MAX_SIZE);
-		if (!options->data) {
-			print_error("Memory Allocation problem");
-			goto out;
-		}
+		if (!options->data)
+			goto out_mem_problem;
 
 		strcpy(options->data, optarg);
 	}
@@ -783,10 +781,8 @@ static int verify_write(struct tool_options *options)
 	if (options->config_type_inx == ATTR_TYPE ||
 	    options->config_type_inx == UIC_TYPE) {
 		options->data = (__u32 *)calloc(1, sizeof(__u32));
-		if (!options->data) {
-			print_error("Memory Allocation problem");
-			goto out;
-		}
+		if (!options->data)
+			goto out_mem_problem;
 
 		*(__u32 *)options->data = strtol(optarg, &endptr, 16);
 
@@ -805,15 +801,16 @@ static int verify_write(struct tool_options *options)
 			goto out;
 		}
 		options->data = (char *)calloc(1, len);
-		if (options->data == NULL) {
-			print_error("Memory Allocation problem");
-			goto out;
-		} else
+		if (options->data == NULL)
+			goto out_mem_problem;
+		else
 			strcpy(options->data, optarg);
 	}
 
 	return OK;
 
+out_mem_problem:
+	print_error("Memory Allocation problem");
 out:
 	return ERROR;
 }
