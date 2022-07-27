@@ -1064,7 +1064,7 @@ int do_desc(struct tool_options *opt)
 
 	fd = open(opt->path, oflag);
 	if (fd < 0) {
-		print_error("open");
+		perror("Device open");
 		return ERROR;
 	}
 
@@ -1131,7 +1131,7 @@ int do_get_ufs_spec_ver(struct tool_options *opt)
 
 	fd = open(opt->path, oflag);
 	if (fd < 0) {
-		print_error("open");
+		perror("Device open");
 		return ERROR;
 	}
 
@@ -1335,7 +1335,7 @@ int do_attributes(struct tool_options *opt)
 
 	fd = open(opt->path, oflag);
 	if (fd < 0) {
-		print_error("open");
+		perror("Device open");
 		return ERROR;
 	}
 	tmp = &ufs_attrs[opt->idn];
@@ -1430,7 +1430,7 @@ int do_flags(struct tool_options *opt)
 
 	fd = open(opt->path, oflag);
 	if (fd < 0) {
-		print_error("open");
+		perror("Device open");
 		return ERROR;
 	}
 
