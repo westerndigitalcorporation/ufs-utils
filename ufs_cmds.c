@@ -349,14 +349,14 @@ static const char *const desc_text[] = {
 	"Health"
 };
 
-static int do_unit_desc(int fd, __u8 lun);
-static int do_power_desc(int fd);
+static int do_unit_desc(int fd, __u8 lun, char *data_file);
+static int do_power_desc(int fd, char *data_file);
 static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file);
 static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
-			__u8 index);
+			  __u8 index, char *data_file);
 static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
-			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
-			__u16 desc_buf_len, __u8 *data_buf);
+			 struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
+			 __u16 desc_buf_len, __u8 *data_buf);
 static void query_response_error(__u8 opcode, __u8 idn);
 static int find_bsg_device(char *path, int *counter);
 
@@ -611,6 +611,23 @@ static void print_flag(char *name, __u8 value)
 	}
 }
 
+static int store_data_file(char *data_file, __u8 *buf, size_t buf_size)
+{
+	int rc = OK;
+	int data_fd = INVALID;
+
+	data_fd = open(data_file, O_WRONLY | O_CREAT | O_TRUNC,
+		       S_IRUSR | S_IWUSR);
+	if (data_fd < 0) {
+		perror("can't open output file");
+		return ERROR;
+	}
+
+	rc = write(data_fd, buf, buf_size);
+
+	return rc;
+}
+
 static char *access_type_string(__u8 current_att, __u8 config_type,
 				char *access_string)
 {
@@ -659,17 +676,17 @@ static void query_response_error(__u8 opcode, __u8 idn)
 		    query_err_status[query_response_inx].name, idn);
 }
 
-static int do_unit_desc(int fd, __u8 lun)
+static int do_unit_desc(int fd, __u8 lun, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_UNIT_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_UNIT, lun,
-			QUERY_DESC_UNIT_MAX_SIZE, data_buf);
-	if (ret) {
-		print_error("Could not read unit descriptor error", ret);
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_UNIT, lun,
+			  QUERY_DESC_UNIT_MAX_SIZE, data_buf);
+	if (rc) {
+		print_error("Could not read unit descriptor error", rc);
 		goto out;
 	}
 
@@ -679,68 +696,98 @@ static int do_unit_desc(int fd, __u8 lun)
 	else
 		print_descriptors("LUN Descriptor", data_buf,
 				device_unit_desc_field_name, data_buf[0]);
-
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write Unit desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Unit Descriptor was written into %s file\n", data_file);
+	}
 
 out:
-	return ret;
+	return rc;
 }
 
-static int do_interconnect_desc(int fd)
+static int do_interconnect_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_INTERCONNECT_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_INTERCONNECT,
-			0, QUERY_DESC_INTERCONNECT_MAX_SIZE, data_buf);
-	if (ret) {
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_INTERCONNECT,
+			  0, QUERY_DESC_INTERCONNECT_MAX_SIZE, data_buf);
+	if (rc) {
 		print_error("Could not read interconnect descriptor error %d",
-			ret);
+			    rc);
 		goto out;
 	}
 
 	print_descriptors("Interconnect Descriptor", data_buf,
-			device_interconnect_desc_conf_field_name, data_buf[0]);
+			  device_interconnect_desc_conf_field_name,
+			  data_buf[0]);
 
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write geometry desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Interconnect Descriptor was written into %s file\n",
+		       data_file);
+	}
 out:
-	return ret;
+	return rc;
 }
 
-static int do_geo_desc(int fd)
+static int do_geo_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_GEOMETRY_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_GEOMETRY, 0,
-			QUERY_DESC_GEOMETRY_MAX_SIZE, data_buf);
-	if (ret) {
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_GEOMETRY, 0,
+			  QUERY_DESC_GEOMETRY_MAX_SIZE, data_buf);
+	if (rc) {
 		print_error("Could not read geometry descriptor , error %d",
-			ret);
+			    rc);
 		goto out;
 	}
 
 	print_descriptors("Geometry Descriptor", data_buf,
-			device_geo_desc_conf_field_name, data_buf[0]);
+			  device_geo_desc_conf_field_name, data_buf[0]);
+
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write geometry desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Geometry Descriptor was written into %s file\n",
+		       data_file);
+	}
 
 out:
-	return ret;
+	return rc;
 }
 
-static int do_power_desc(int fd)
+static int do_power_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_POWER_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp,
-			QUERY_DESC_IDN_POWER, 0, QUERY_DESC_POWER_MAX_SIZE,
-			data_buf);
-	if (ret) {
-		print_error("Could not read power descriptor , error %d", ret);
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
+			  QUERY_DESC_IDN_POWER, 0, QUERY_DESC_POWER_MAX_SIZE,
+			  data_buf);
+	if (rc) {
+		print_error("Could not read power descriptor , error %d", rc);
 		goto out;
 	}
 
@@ -755,31 +802,51 @@ static int do_power_desc(int fd)
 	print_power_desc_icc(data_buf, 2);
 	print_power_desc_icc(data_buf, 3);
 	print_power_desc_icc(data_buf, 4);
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write power desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Power Descriptor was written into %s file\n",
+		       data_file);
+	}
 
 out:
-	return ret;
+	return rc;
 }
 
-static int do_health_desc(int fd)
+static int do_health_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_HEALTH_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_HEALTH, 0,
-			QUERY_DESC_HEALTH_MAX_SIZE, data_buf);
-	if (ret) {
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_HEALTH, 0,
+			  QUERY_DESC_HEALTH_MAX_SIZE, data_buf);
+	if (rc) {
 		print_error("Could not read device health descriptor error %d",
-			ret);
+			    rc);
 		goto out;
 	}
 
 	print_descriptors("Device Health Descriptor:", data_buf,
-			device_health_desc_conf_field_name, data_buf[0]);
+			  device_health_desc_conf_field_name, data_buf[0]);
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write string desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Device Health Descriptor was written into %s file\n",
+		       data_file);
+	}
 
 out:
-	return ret;
+	return rc;
 }
 
 static void create_str_desc_data(__u8 *dest_buf, const char *str, __u8 len)
@@ -796,7 +863,7 @@ static void create_str_desc_data(__u8 *dest_buf, const char *str, __u8 len)
 }
 
 static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
-			__u8 index)
+			  __u8 index, char *data_file)
 {
 	int rc = 0;
 	__u8 data_buf[QUERY_DESC_STRING_MAX_SIZE] = {0};
@@ -821,7 +888,19 @@ static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
 				printf("0x%02x ", data_buf[i]);
 			printf("\n");
 		}
+		if (data_file) {
+			rc = store_data_file(data_file, data_buf,
+					     bsg_rsp.reply_payload_rcv_len);
+			if (rc < 0) {
+				print_error("Could not write string desc data");
+				rc = ERROR;
+				goto out;
+			}
+			printf("String Descriptor was written into %s file\n",
+			       data_file);
+		}
 	}
+out:
 	return rc;
 }
 
@@ -899,20 +978,13 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 			offset = offset  + lun_off;
 		}
 		if (data_file) {
-			data_fd = open(data_file, O_WRONLY | O_CREAT | O_TRUNC,
-				       S_IRUSR | S_IWUSR);
-			if (data_fd < 0) {
-				perror("can't open output file");
-				return ERROR;
-			}
-
-			rc = write(data_fd, conf_desc_buf, conf_desc_buf[0]);
-			if (rc <= 0) {
+			rc = store_data_file(data_file, conf_desc_buf,
+					     conf_desc_buf[0]);
+			if (rc < 0) {
 				print_error("Could not write config data");
 				rc = ERROR;
 				goto out;
 			}
-
 			printf("Config Descriptor was written into %s file\n",
 			       data_file);
 		}
@@ -1129,7 +1201,7 @@ void ufs_bsg_list_help(char *tool_name)
 	printf("\n\t%s list_bsg\n", tool_name);
 }
 
-int do_device_desc(int fd, __u8 *desc_buff)
+int do_device_desc(int fd, __u8 *desc_buff, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
@@ -1148,6 +1220,17 @@ int do_device_desc(int fd, __u8 *desc_buff)
 				  device_desc_field_name, data_buf[0]);
 	else
 		memcpy(desc_buff, data_buf, data_buf[0]);
+
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write string desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Device Descriptor was written into %s file\n",
+		       data_file);
+	}
 
 out:
 	return rc;
@@ -1169,40 +1252,39 @@ int do_desc(struct tool_options *opt)
 	}
 
 	if (opt->opr == READ_ALL) {
-		if (do_device_desc(fd, NULL) || do_unit_desc(fd, 0) ||
-			do_interconnect_desc(fd) || do_geo_desc(fd) ||
-			do_power_desc(fd) ||
-			do_health_desc(fd) ||
-			do_conf_desc(fd, READ, 0, NULL))
+		if (do_device_desc(fd, 0, 0) || do_unit_desc(fd, 0, 0) ||
+		    do_interconnect_desc(fd, 0) || do_geo_desc(fd, 0) ||
+		    do_power_desc(fd, 0) || do_health_desc(fd, 0) ||
+		    do_conf_desc(fd, READ, 0, 0))
 			rc = ERROR;
 		goto out;
 	}
 
 	switch (opt->idn) {
 	case QUERY_DESC_IDN_DEVICE:
-		rc = do_device_desc(fd, NULL);
+		rc = do_device_desc(fd, 0, opt->data);
 		break;
 	case QUERY_DESC_IDN_CONFIGURAION:
 		rc = do_conf_desc(fd, opt->opr, opt->index, (char *)opt->data);
 		break;
 	case QUERY_DESC_IDN_UNIT:
-		rc = do_unit_desc(fd, opt->index);
+		rc = do_unit_desc(fd, opt->index, opt->data);
 		break;
 	case QUERY_DESC_IDN_GEOMETRY:
-		rc = do_geo_desc(fd);
+		rc = do_geo_desc(fd, opt->data);
 		break;
 	case QUERY_DESC_IDN_POWER:
-		rc = do_power_desc(fd);
+		rc = do_power_desc(fd, opt->data);
 		break;
 	case QUERY_DESC_IDN_STRING:
 		rc = do_string_desc(fd, (char *)opt->data, opt->idn, opt->opr,
-				opt->index);
+				    opt->index, opt->data);
 		break;
 	case QUERY_DESC_IDN_HEALTH:
-		rc = do_health_desc(fd);
+		rc = do_health_desc(fd, opt->data);
 		break;
 	case QUERY_DESC_IDN_INTERCONNECT:
-		rc = do_interconnect_desc(fd);
+		rc = do_interconnect_desc(fd, opt->data);
 		break;
 	default:
 		print_error("Unsupported Descriptor type %d", opt->idn);
@@ -1235,7 +1317,7 @@ int do_get_ufs_spec_ver(struct tool_options *opt)
 		return ERROR;
 	}
 
-	rc = do_device_desc(fd, (__u8 *)&dev_desc);
+	rc = do_device_desc(fd, (__u8 *)&dev_desc, 0);
 	if (rc != OK) {
 		print_error("Could not read device descriptor in order to "
 			    "get device ufs spec version\n");

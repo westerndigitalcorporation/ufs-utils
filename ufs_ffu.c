@@ -153,7 +153,7 @@ static int check_ffu_status(int fd, struct tool_options *opt)
 			ffu_status_string((enum ffu_status_type)attr_value));
 	}
 
-	rc = do_device_desc(fd, (__u8 *)&dev_desc);
+	rc = do_device_desc(fd, (__u8 *)&dev_desc, 0);
 	if (rc != OK)
 		print_error("Could not read device descriptor in order to "
 			"read device version\n");
