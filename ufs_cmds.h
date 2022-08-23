@@ -66,7 +66,7 @@ int do_flags(struct tool_options *opt);
 int do_get_ufs_spec_ver(struct tool_options *opt);
 int do_get_ufs_bsg_list(struct tool_options *opt);
 void print_command_help (char *prgname, int config_type);
-int do_device_desc(int fd, __u8 *desc_buff);
+int do_device_desc(int fd, __u8 *desc_buff, char *data_file);
 void desc_help(char *tool_name);
 void attribute_help(char *tool_name);
 void flag_help(char *tool_name);

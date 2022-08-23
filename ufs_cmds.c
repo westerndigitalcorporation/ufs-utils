@@ -349,23 +349,26 @@ static const char *const desc_text[] = {
 	"Health"
 };
 
-int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
-		struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
-		__u16 desc_buf_len, __u8 *data_buf);
-static int do_unit_desc(int fd, __u8 lun);
-static int do_power_desc(int fd);
+static int do_unit_desc(int fd, __u8 lun, char *data_file);
+static int do_power_desc(int fd, char *data_file);
 static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file);
 static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
-			__u8 index);
-int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
-			struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
-			__u8 opcode, __u8 idn, __u8 index, __u8 sel,
-			__u16 req_buf_len, __u16 res_buf_len, __u8 *data_buf);
+			  __u8 index, char *data_file);
 static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
-			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
-			__u16 desc_buf_len, __u8 *data_buf);
+			 struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
+			 __u16 desc_buf_len, __u8 *data_buf);
 static void query_response_error(__u8 opcode, __u8 idn);
 static int find_bsg_device(char *path, int *counter);
+
+int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
+		 struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
+		 __u16 desc_buf_len, __u8 *data_buf);
+
+int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
+		struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
+		__u8 opcode, __u8 idn, __u8 index, __u8 sel,
+		__u16 req_buf_len, __u16 res_buf_len, __u8 *data_buf);
+
 
 static void print_power_desc_icc(__u8 *desc_buf, int vccIndex)
 {
@@ -403,8 +406,70 @@ static void print_vendor_info(__u8 *desc_buf, int len)
 	printf("\n");
 }
 
-void print_descriptors(char *desc_str, __u8 *desc_buf,
-		struct desc_field_offset *desc_array, int arr_size)
+static void print_descriptors_json(__u8 *desc_buf,
+				   struct desc_field_offset *desc_array,
+				   int arr_size)
+{
+	int i;
+	struct desc_field_offset *tmp;
+	char str_buf[STR_BUF_LEN];
+	int offset = 0;
+
+	printf("%s\n", "{");
+
+	for (i = 0; offset < arr_size; ++i) {
+		tmp = &desc_array[i];
+		offset = tmp->offset + tmp->width_in_bytes;
+
+		if (tmp->width_in_bytes == BYTE) {
+			printf("%c%s%c:%d,\n", '"', tmp->name, '"',
+			       desc_buf[tmp->offset]);
+		} else if (tmp->width_in_bytes == WORD) {
+			printf("%c%s%c:%d,\n", '"', tmp->name, '"',
+			       be16toh(*(__u16 *)&desc_buf[tmp->offset]));
+		} else if (tmp->width_in_bytes == DWORD) {
+			printf("%c%s%c:%d,\n", '"', tmp->name, '"',
+			       be32toh(*(__u32 *)&desc_buf[tmp->offset]));
+		} else if (tmp->width_in_bytes == DDWORD) {
+			printf("%c%s%c:%ld,\n", '"', tmp->name, '"',
+			       be64toh(*(__u64 *)&desc_buf[tmp->offset]));
+		} else if ((tmp->width_in_bytes > DDWORD) &&
+				tmp->width_in_bytes < STR_BUF_LEN) {
+			if (!strcmp(tmp->name, "VendorPropInfo")) {
+				printf("%c%s%c:", '"', tmp->name, '"');
+				print_vendor_info(&desc_buf[tmp->offset],
+						  tmp->width_in_bytes);
+			} else {
+				memset(str_buf, 0, STR_BUF_LEN);
+				memcpy(str_buf, &desc_buf[tmp->offset],
+				       tmp->width_in_bytes);
+				printf("%c%s%c:%s,\n", '"', tmp->name, '"',
+				       str_buf);
+			}
+		} else {
+			printf("Err %s[Byte offset 0x%x] Wrong Width = %d\n",
+			       tmp->name, tmp->offset, tmp->width_in_bytes);
+		}
+	}
+
+	printf("%s\n", "}");
+}
+
+static void print_descriptors_raw(__u8 *desc_buf, int arr_size)
+{
+	int i;
+
+	for (i = 0; i < arr_size; i++) {
+		printf("%02x ", desc_buf[i]);
+		if ((i + 1) % 16 == 0)
+			printf("\n");
+	}
+	printf("\n");
+}
+
+static void print_descriptors_verbose(char *desc_str, __u8 *desc_buf,
+				      struct desc_field_offset *desc_array,
+				      int arr_size)
 {
 	int i;
 	struct desc_field_offset *tmp;
@@ -455,6 +520,114 @@ void print_descriptors(char *desc_str, __u8 *desc_buf,
 	}
 }
 
+static void print_descriptors(char *desc_str, __u8 *desc_buf,
+			      struct desc_field_offset *desc_array,
+			      int arr_size)
+{
+	switch (gl_pr_type) {
+	case JSON:
+		print_descriptors_json(desc_buf, desc_array, arr_size);
+		break;
+	case RAW_VALUE:
+		print_descriptors_raw(desc_buf, arr_size);
+		break;
+	default:
+		print_descriptors_verbose(desc_str, desc_buf, desc_array,
+					  arr_size);
+	}
+}
+
+static void print_attribute_verbose(struct attr_fields *attr, __u8 *attr_buffer)
+{
+	if (!attr)
+		printf("%-26s := 0x%08x\n", "Attribute value",
+		       *(__u32 *)attr_buffer);
+	else if (attr->width_in_bytes == BYTE)
+		printf("%-26s := 0x%02x\n", attr->name, attr_buffer[0]);
+	else if (attr->width_in_bytes == WORD)
+		printf("%-26s := 0x%04x\n", attr->name, *(__u16 *)attr_buffer);
+	else
+		printf("%-26s := 0x%08x\n", attr->name, *(__u32 *)attr_buffer);
+}
+
+static void print_attribute_raw(struct attr_fields *attr, __u8 *attr_buffer)
+{
+	if (!attr)
+		printf("0x%08x\n", *(__u32 *)attr_buffer);
+	else if (attr->width_in_bytes == BYTE)
+		printf("0x%02x\n", attr_buffer[0]);
+	else if (attr->width_in_bytes == WORD)
+		printf("0x%04x\n", *(__u16 *)attr_buffer);
+	else
+		printf("0x%08x\n", *(__u32 *)attr_buffer);
+}
+
+static void print_attribute_json(struct attr_fields *attr, __u8 *attr_buffer)
+{
+	printf("{\n");
+
+	if (!attr)
+		printf("%c%s%c:%d\n", '"', "Attribute value", '"',
+		       *(__u32 *)attr_buffer);
+	else if (attr->width_in_bytes == BYTE)
+		printf("%c%s%c:%d\n", '"', attr->name, '"', attr_buffer[0]);
+	else if (attr->width_in_bytes == WORD)
+		printf("%c%s%c:%d\n", '"', attr->name, '"',
+		       *(__u16 *)attr_buffer);
+	else
+		printf("%c%s%c:%d\n", '"', attr->name, '"',
+		       *(__u32 *)attr_buffer);
+
+	printf("}\n");
+}
+
+static void print_attribute(struct attr_fields *attr, __u8 *attr_buffer)
+{
+	switch (gl_pr_type) {
+	case JSON:
+		print_attribute_json(attr, attr_buffer);
+		break;
+	case RAW_VALUE:
+		print_attribute_raw(attr, attr_buffer);
+		break;
+	default:
+		print_attribute_verbose(attr, attr_buffer);
+	}
+}
+
+static void print_flag(char *name, __u8 value)
+{
+	switch (gl_pr_type) {
+	case JSON:
+		printf("%s\n", "{");
+		printf("%c%s%c:%d\n", '"', name, '"', value);
+		printf("%s", "}\n");
+		break;
+	case RAW_VALUE:
+		printf("0x%02x\n", value);
+		break;
+	default:
+		printf("%-26s := 0x%01x\n", name, value);
+	}
+}
+
+static int store_data_file(char *data_file, __u8 *buf, size_t buf_size)
+{
+	int rc = OK;
+	int data_fd = INVALID;
+
+	data_fd = open(data_file, O_WRONLY | O_CREAT | O_TRUNC,
+		       S_IRUSR | S_IWUSR);
+	if (data_fd < 0) {
+		perror("can't open output file");
+		return ERROR;
+	}
+
+	rc = write(data_fd, buf, buf_size);
+
+	return rc;
+}
+
 static char *access_type_string(__u8 current_att, __u8 config_type,
 				char *access_string)
 {
@@ -503,149 +676,17 @@ static void query_response_error(__u8 opcode, __u8 idn)
 		    query_err_status[query_response_inx].name, idn);
 }
 
-void desc_help(char *tool_name)
-{
-	printf("\n Descriptor command usage:\n");
-	printf("\n\t%s desc [-t] <descriptor idn> [-a|-r|-w] <data> [-p] "
-		"<device_path> \n", tool_name);
-	printf("\n\t-t\t description type idn\n"
-		"\t\t Available description types based on UFS ver 3.1 :\n"
-		"\t\t\t0:\tDevice\n"
-		"\t\t\t1:\tConfiguration\n"
-		"\t\t\t2:\tUnit\n"
-		"\t\t\t3:\tRFU\n"
-		"\t\t\t4:\tInterconnect\n"
-		"\t\t\t5:\tString\n"
-		"\t\t\t6:\tRFU\n"
-		"\t\t\t7:\tGeometry\n"
-		"\t\t\t8:\tPower\n"
-		"\t\t\t9:\tDevice Health\n"
-		"\t\t\t10..255: RFU\n");
-	printf("\n\t-r\t read operation (default) for readable descriptors\n");
-	printf("\n\t-w\t write operation , for writable descriptors\n");
-	printf("\t\t Set the input configuration file after -w opt\n");
-	printf("\t\t for Configuration descriptor\n");
-	printf("\t\t Set the input string after -w opt\n");
-	printf("\t\t for String descriptor\n");
-	printf("\n\t-i\t Set index parameter(default = 0)\n");
-	printf("\n\t-s\t Set selector parameter(default = 0)\n");
-	printf("\n\t-D/--output_file Set descriptor file output path\n");
-	printf("\n\t-p\t path to ufs bsg device\n");
-}
-
-void attribute_help(char *tool_name)
-{
-	__u8 current_att = 0;
-	char access_string[100] = {0};
-
-	printf("\n Attributes command usage:\n");
-	printf("\n\t%s attr [-t] <attr_idn> [-a|-r|-w] <data_hex> [-p]"
-		" <device_path> \n", tool_name);
-	printf("\n\t-t\t Attributes type idn\n"
-		"\t\t Available attributes and its access based on"
-		" UFS ver 3.1 :\n");
-
-	while (current_att < ARRAY_SIZE(ufs_attrs)) {
-		printf("\t\t\t %-3d: %-25s %s\n",
-			current_att,
-			ufs_attrs[current_att].name,
-			access_type_string(current_att, ATTR_TYPE,
-			access_string));
-		current_att++;
-		memset(access_string, 0, 100);
-	}
-
-	printf("\n\t-a\tread and print all readable attributes"
-		" for the device\n");
-	printf("\n\t-r\tread operation (default), for readable attribute(s)\n");
-	printf("\n\t-w\twrite operation (with hex data),"
-		" for writable attribute\n");
-	printf("\n\t-i\t Set index parameter(default = 0)\n");
-	printf("\n\t-s\t Set selector parameter(default = 0)\n");
-	printf("\n\t-p\tpath to ufs bsg device\n");
-	printf("\n\tExample - Read bBootLunEn\n"
-		"\t\t%s attr -t 0 -p /dev/ufs-bsg\n", tool_name);
-}
-
-void flag_help(char *tool_name)
-{
-	__u8 current_flag = 0;
-	char access_string[100] = {0};
-
-	printf("\n Flags command usage:\n");
-	printf("\n\t%s fl [-t] <flag idn> [-a|-r|-o|-e] [-p]"
-		" <device_path>\n", tool_name);
-	printf("\n\t-t\t Flags type idn\n"
-		"\t\t Available flags and its access, based on UFS ver 3.1 :\n");
-
-	while (current_flag < QUERY_FLAG_IDN_MAX) {
-		printf("\t\t\t %-3d: %-25s %s\n", current_flag,
-		       ufs_flags[current_flag].name,
-		       access_type_string(current_flag, FLAG_TYPE,
-					   access_string));
-		current_flag++;
-		memset(access_string, 0, 100);
-	}
-	printf("\n\t-a\t read and print all readable flags for the device\n");
-	printf("\n\t-r\t read operation (default), for readable flag(s)\n");
-	printf("\n\t-e\t set flag operation\n");
-	printf("\n\t-c\t clear/reset flag operation\n");
-	printf("\n\t-o\t toggle flag operation\n");
-	printf("\n\t-i\t Set index parameter(default = 0)\n");
-	printf("\n\t-s\t Set selector parameter(default = 0)\n");
-	printf("\n\t-p\t path to ufs bsg device\n");
-	printf("\n\tExample - Read the bkops operation flag\n"
-		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
-}
-
-void ufs_spec_ver_help(char *tool_name)
-{
-	printf("\n Get UFS spec version usage:\n");
-	printf("\n\t%s spec_version [-p] <device_path> \n", tool_name);
-	printf("\n\t-p\tpath to ufs bsg device\n");
-}
-
-void ufs_bsg_list_help(char *tool_name)
-{
-	printf("\n Find UFS BSG device list usage:\n");
-	printf("\n\t%s list_bsg\n", tool_name);
-}
-
-int do_device_desc(int fd, __u8 *desc_buff)
-{
-	struct ufs_bsg_request bsg_req = {0};
-	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_DEVICE_MAX_SIZE] = {0};
-	int rc = 0;
-
-	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
-			QUERY_DESC_IDN_DEVICE, 0,
-			QUERY_DESC_DEVICE_MAX_SIZE, data_buf);
-	if (rc) {
-		print_error("Could not read device descriptor , error %d", rc);
-		goto out;
-	}
-	if (!desc_buff)
-		print_descriptors("Device Descriptor", data_buf,
-				device_desc_field_name, data_buf[0]);
-	else
-		memcpy(desc_buff, data_buf, data_buf[0]);
-
-out:
-	return rc;
-}
-
-static int do_unit_desc(int fd, __u8 lun)
+static int do_unit_desc(int fd, __u8 lun, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_UNIT_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_UNIT, lun,
-			QUERY_DESC_UNIT_MAX_SIZE, data_buf);
-	if (ret) {
-		print_error("Could not read unit descriptor error", ret);
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_UNIT, lun,
+			  QUERY_DESC_UNIT_MAX_SIZE, data_buf);
+	if (rc) {
+		print_error("Could not read unit descriptor error", rc);
 		goto out;
 	}
 
@@ -655,68 +696,98 @@ static int do_unit_desc(int fd, __u8 lun)
 	else
 		print_descriptors("LUN Descriptor", data_buf,
 				device_unit_desc_field_name, data_buf[0]);
-
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write Unit desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Unit Descriptor was written into %s file\n", data_file);
+	}
 
 out:
-	return ret;
+	return rc;
 }
 
-static int do_interconnect_desc(int fd)
+static int do_interconnect_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_INTERCONNECT_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_INTERCONNECT,
-			0, QUERY_DESC_INTERCONNECT_MAX_SIZE, data_buf);
-	if (ret) {
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_INTERCONNECT,
+			  0, QUERY_DESC_INTERCONNECT_MAX_SIZE, data_buf);
+	if (rc) {
 		print_error("Could not read interconnect descriptor error %d",
-			ret);
+			    rc);
 		goto out;
 	}
 
 	print_descriptors("Interconnect Descriptor", data_buf,
-			device_interconnect_desc_conf_field_name, data_buf[0]);
+			  device_interconnect_desc_conf_field_name,
+			  data_buf[0]);
 
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write geometry desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Interconnect Descriptor was written into %s file\n",
+		       data_file);
+	}
 out:
-	return ret;
+	return rc;
 }
 
-static int do_geo_desc(int fd)
+static int do_geo_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_GEOMETRY_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_GEOMETRY, 0,
-			QUERY_DESC_GEOMETRY_MAX_SIZE, data_buf);
-	if (ret) {
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_GEOMETRY, 0,
+			  QUERY_DESC_GEOMETRY_MAX_SIZE, data_buf);
+	if (rc) {
 		print_error("Could not read geometry descriptor , error %d",
-			ret);
+			    rc);
 		goto out;
 	}
 
 	print_descriptors("Geometry Descriptor", data_buf,
-			device_geo_desc_conf_field_name, data_buf[0]);
+			  device_geo_desc_conf_field_name, data_buf[0]);
+
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write geometry desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Geometry Descriptor was written into %s file\n",
+		       data_file);
+	}
 
 out:
-	return ret;
+	return rc;
 }
 
-static int do_power_desc(int fd)
+static int do_power_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_POWER_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp,
-			QUERY_DESC_IDN_POWER, 0, QUERY_DESC_POWER_MAX_SIZE,
-			data_buf);
-	if (ret) {
-		print_error("Could not read power descriptor , error %d", ret);
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
+			  QUERY_DESC_IDN_POWER, 0, QUERY_DESC_POWER_MAX_SIZE,
+			  data_buf);
+	if (rc) {
+		print_error("Could not read power descriptor , error %d", rc);
 		goto out;
 	}
 
@@ -731,31 +802,51 @@ static int do_power_desc(int fd)
 	print_power_desc_icc(data_buf, 2);
 	print_power_desc_icc(data_buf, 3);
 	print_power_desc_icc(data_buf, 4);
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write power desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Power Descriptor was written into %s file\n",
+		       data_file);
+	}
 
 out:
-	return ret;
+	return rc;
 }
 
-static int do_health_desc(int fd)
+static int do_health_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_HEALTH_MAX_SIZE] = {0};
-	int ret = 0;
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_HEALTH, 0,
-			QUERY_DESC_HEALTH_MAX_SIZE, data_buf);
-	if (ret) {
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_HEALTH, 0,
+			  QUERY_DESC_HEALTH_MAX_SIZE, data_buf);
+	if (rc) {
 		print_error("Could not read device health descriptor error %d",
-			ret);
+			    rc);
 		goto out;
 	}
 
 	print_descriptors("Device Health Descriptor:", data_buf,
-			device_health_desc_conf_field_name, data_buf[0]);
+			  device_health_desc_conf_field_name, data_buf[0]);
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write string desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Device Health Descriptor was written into %s file\n",
+		       data_file);
+	}
 
 out:
-	return ret;
+	return rc;
 }
 
 static void create_str_desc_data(__u8 *dest_buf, const char *str, __u8 len)
@@ -772,7 +863,7 @@ static void create_str_desc_data(__u8 *dest_buf, const char *str, __u8 len)
 }
 
 static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
-			__u8 index)
+			  __u8 index, char *data_file)
 {
 	int rc = 0;
 	__u8 data_buf[QUERY_DESC_STRING_MAX_SIZE] = {0};
@@ -797,7 +888,19 @@ static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
 				printf("0x%02x ", data_buf[i]);
 			printf("\n");
 		}
+		if (data_file) {
+			rc = store_data_file(data_file, data_buf,
+					     bsg_rsp.reply_payload_rcv_len);
+			if (rc < 0) {
+				print_error("Could not write string desc data");
+				rc = ERROR;
+				goto out;
+			}
+			printf("String Descriptor was written into %s file\n",
+			       data_file);
+		}
 	}
+out:
 	return rc;
 }
 
@@ -866,7 +969,8 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 
 		offset = head_off;
 		for (i = 0 ; i < 8; i++) {
-			printf("Config %d Unit Descriptor:\n", i);
+			if (gl_pr_type == VERBOSE)
+				printf("Config %d Unit Descriptor:\n", i);
 			print_descriptors("Config Descriptor:",
 				conf_desc_buf + offset,
 				device_config_unit_desc_field_name,
@@ -874,20 +978,13 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 			offset = offset  + lun_off;
 		}
 		if (data_file) {
-			data_fd = open(data_file, O_WRONLY | O_CREAT | O_TRUNC,
-				       S_IRUSR | S_IWUSR);
-			if (data_fd < 0) {
-				perror("can't open output file");
-				return ERROR;
-			}
-
-			rc = write(data_fd, conf_desc_buf, conf_desc_buf[0]);
-			if (rc <= 0) {
+			rc = store_data_file(data_file, conf_desc_buf,
+					     conf_desc_buf[0]);
+			if (rc < 0) {
 				print_error("Could not write config data");
 				rc = ERROR;
 				goto out;
 			}
-
 			printf("Config Descriptor was written into %s file\n",
 			       data_file);
 		}
@@ -898,196 +995,30 @@ out:
 	return rc;
 }
 
-int do_desc(struct tool_options *opt)
-{
-	int fd;
-	int rc = OK;
-	int oflag = O_RDWR;
-
-	if (opt->opr == READ_ALL || opt->opr == READ)
-		oflag = O_RDONLY;
-
-	fd = open(opt->path, oflag);
-	if (fd < 0) {
-		print_error("open");
-		return ERROR;
-	}
-
-	if (opt->opr == READ_ALL) {
-		if (do_device_desc(fd, NULL) || do_unit_desc(fd, 0) ||
-			do_interconnect_desc(fd) || do_geo_desc(fd) ||
-			do_power_desc(fd) ||
-			do_health_desc(fd) ||
-			do_conf_desc(fd, READ, 0, NULL))
-			rc = ERROR;
-		goto out;
-	}
-
-	switch (opt->idn) {
-	case QUERY_DESC_IDN_DEVICE:
-		rc = do_device_desc(fd, NULL);
-		break;
-	case QUERY_DESC_IDN_CONFIGURAION:
-		rc = do_conf_desc(fd, opt->opr, opt->index, (char *)opt->data);
-		break;
-	case QUERY_DESC_IDN_UNIT:
-		rc = do_unit_desc(fd, opt->index);
-		break;
-	case QUERY_DESC_IDN_GEOMETRY:
-		rc = do_geo_desc(fd);
-		break;
-	case QUERY_DESC_IDN_POWER:
-		rc = do_power_desc(fd);
-		break;
-	case QUERY_DESC_IDN_STRING:
-		rc = do_string_desc(fd, (char *)opt->data, opt->idn, opt->opr,
-				opt->index);
-		break;
-	case QUERY_DESC_IDN_HEALTH:
-		rc = do_health_desc(fd);
-		break;
-	case QUERY_DESC_IDN_INTERCONNECT:
-		rc = do_interconnect_desc(fd);
-		break;
-	default:
-		print_error("Unsupported Descriptor type %d", opt->idn);
-		rc = -EINVAL;
-		break;
-	}
-
-out:
-	close(fd);
-	return rc;
-}
-
-int do_get_ufs_spec_ver(struct tool_options *opt)
-{
-	int fd;
-	int rc = OK;
-	int oflag = O_RDWR;
-	__u8 dev_desc[QUERY_DESC_DEVICE_MAX_SIZE] = {0};
-	__u16 *ufs_spec;
-	__u16 spec_value;
-	__u8 maj_vers, minor_ver, vers_suf = 0;
-	struct desc_field_offset *tmp = &device_desc_field_name[0x10];
-
-	if (opt->opr == READ_ALL || opt->opr == READ)
-		oflag = O_RDONLY;
-
-	fd = open(opt->path, oflag);
-	if (fd < 0) {
-		print_error("open");
-		return ERROR;
-	}
-
-	rc = do_device_desc(fd, (__u8 *)&dev_desc);
-	if (rc != OK) {
-		print_error("Could not read device descriptor in order to "
-			    "get device ufs spec version\n");
-	} else {
-		ufs_spec = (__u16 *)&dev_desc[tmp->offset];
-		spec_value = be16toh(*ufs_spec);
-		maj_vers = spec_value >> 8 & 0xff;
-		minor_ver = spec_value >> 4 & 0x0f;
-		vers_suf = spec_value & 0x0f;
-		if (vers_suf)
-			printf("%d.%d%d\n", maj_vers, minor_ver, vers_suf);
-		else
-			printf("%d.%d\n", maj_vers, minor_ver);
-	}
-
-	close(fd);
-	return rc;
-}
-
-int do_get_ufs_bsg_list(struct tool_options *opt)
-{
-	int rc;
-	int counter = 0;
-
-	rc = find_bsg_device("/dev", &counter);
-	if (!counter)
-		printf("Didn't found UFS BSG device\n");
-	return rc;
-}
-
-void print_attribute(struct attr_fields *attr, __u8 *attr_buffer)
-{
-	if (!attr)
-		printf("%-26s := 0x%08x\n", "Attribute value",
-		       *(__u32 *)attr_buffer);
-	else if (attr->width_in_bytes == BYTE)
-		printf("%-26s := 0x%02x\n", attr->name, attr_buffer[0]);
-	else if (attr->width_in_bytes == WORD)
-		printf("%-26s := 0x%04x\n", attr->name, *(__u16 *)attr_buffer);
-	else
-		printf("%-26s := 0x%08x\n", attr->name, *(__u32 *)attr_buffer);
-}
-
-int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
-			struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
-			__u8 opcode, __u8 idn, __u8 index, __u8 sel,
-			__u16 req_buf_len, __u16 res_buf_len, __u8 *data_buf)
-{
-	int rc = OK;
-	__u8 res_code;
-	__u16 len = res_buf_len;
-
-	if (req_buf_len > 0)
-		len = req_buf_len;
-
-	prepare_upiu(bsg_req, query_req_func, len, opcode, idn,
-		index, sel);
-
-	rc = send_bsg_scsi_trs(fd, bsg_req, bsg_rsp, req_buf_len, res_buf_len,
-			data_buf);
-
-	if (rc) {
-		print_error("%s: query failed, status %d idn: %d, i: %d, s: %d",
-			__func__, rc, idn, index, sel);
-		rc = ERROR;
-		goto out;
-	}
-
-	res_code = (be32toh(bsg_rsp->upiu_rsp.header.dword_1) >> 8) & 0xff;
-	if (res_code) {
-		query_response_error(res_code, idn);
-		rc = ERROR;
-	}
-out:
-	return rc;
-}
-
-static int find_bsg_device(char *path, int *counter)
-{
+static int find_bsg_device(char* path, int *counter) {
 	struct dirent *files;
-	DIR *dir = 0;
+	DIR* dir;
 	int rc = OK;
-	size_t str_size;
-	char *full_path;
 
 	dir = opendir(path);
-	if (!dir) {
+	if (dir == NULL){
 		perror("Directory cannot be opened!");
 		return ERROR;
 	}
-
 	while ((files = readdir(dir)) != NULL) {
 		if (strstr(files->d_name, "ufs-bsg") != 0) {
 			printf("%s/%s\n", path, files->d_name);
 			(*counter)++;
 		}
-
 		if (files->d_type == DT_DIR) {
 			if ((strcmp(files->d_name, ".") != 0) &&
 			    (strcmp(files->d_name, "..") != 0)) {
-				str_size = strlen(path) + strlen(files->d_name);
-				full_path = calloc(1, str_size + 2);
-				sprintf(full_path, "%s/%s", path,
-					files->d_name);
+				char *full_path = (char *)malloc(strlen(path) +
+						   strlen(files->d_name) + 1);
+				sprintf(full_path, "%s/%s",
+					path, files->d_name);
 				rc = find_bsg_device(full_path, counter);
-				if (full_path)
-					free(full_path);
+				free(full_path);
 			}
 		}
 	}
@@ -1161,6 +1092,296 @@ static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 	return rc;
 }
 
+void desc_help(char *tool_name)
+{
+	printf("\n Descriptor command usage:\n");
+	printf("\n\t%s desc [-t] <descriptor idn> [-a|-r|-w] <data> [-p] "
+		"<device_path> \n", tool_name);
+	printf("\n\t-t\t\t description type idn\n"
+		"\t\t\t Available description types based on UFS ver 3.1 :\n"
+		"\t\t\t 0:\tDevice\n"
+		"\t\t\t 1:\tConfiguration\n"
+		"\t\t\t 2:\tUnit\n"
+		"\t\t\t 3:\tRFU\n"
+		"\t\t\t 4:\tInterconnect\n"
+		"\t\t\t 5:\tString\n"
+		"\t\t\t 6:\tRFU\n"
+		"\t\t\t 7:\tGeometry\n"
+		"\t\t\t 8:\tPower\n"
+		"\t\t\t 9:\tDevice Health\n"
+		"\t\t\t 10..255: RFU\n");
+	printf("\n\t-r\t\t read operation (default) for readable descriptors\n");
+	printf("\n\t-w\t\t write operation , for writable descriptors\n");
+	printf("\t\t\t Set the input configuration file after -w opt\n");
+	printf("\t\t\t for Configuration descriptor\n");
+	printf("\t\t\t Set the input string after -w opt\n");
+	printf("\t\t\t for String descriptor\n");
+	printf("\n\t-i\t\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t\t Set selector parameter(default = 0)\n");
+	printf("\n\t-D/--output_file Set descriptor file output path\n");
+	printf("\n\t-P/--output_mode Set print output [raw, json, verbose (default)]\n");
+	printf("\n\t-p\t\t path to ufs bsg device\n");
+}
+
+void attribute_help(char *tool_name)
+{
+	__u8 current_att = 0;
+	char access_string[100] = {0};
+
+	printf("\n Attributes command usage:\n");
+	printf("\n\t%s attr [-t] <attr_idn> [-a|-r|-w] <data_hex> [-p]"
+		" <device_path> \n", tool_name);
+	printf("\n\t-t\t Attributes type idn\n"
+		"\t\t Available attributes and its access based on"
+		" UFS ver 3.1 :\n");
+
+	while (current_att < ARRAY_SIZE(ufs_attrs)) {
+		printf("\t\t\t %-3d: %-25s %s\n",
+			current_att,
+			ufs_attrs[current_att].name,
+			access_type_string(current_att, ATTR_TYPE,
+			access_string));
+		current_att++;
+		memset(access_string, 0, 100);
+	}
+
+	printf("\n\t-a\t\t read and print all readable attributes for the device\n");
+	printf("\n\t-r\t\t read operation (default), for readable attribute(s)\n");
+	printf("\n\t-w\t\t write operation (with hex data), for writable attribute\n");
+	printf("\n\t-i\t\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t\t Set selector parameter(default = 0)\n");
+	printf("\n\t-p\t\t path to ufs bsg device\n");
+	printf("\n\t-P/--output_mode Set print output [raw, json, verbose (default)]\n");
+	printf("\n\tExample - Read bBootLunEn\n"
+		"\t\t%s attr -t 0 -p /dev/ufs-bsg\n", tool_name);
+}
+
+void flag_help(char *tool_name)
+{
+	__u8 current_flag = 0;
+	char access_string[100] = {0};
+
+	printf("\n Flags command usage:\n");
+	printf("\n\t%s fl [-t] <flag idn> [-a|-r|-o|-e] [-p]"
+		" <device_path>\n", tool_name);
+	printf("\n\t-t\t Flags type idn\n"
+		"\t\t Available flags and its access, based on UFS ver 3.1 :\n");
+
+	while (current_flag < QUERY_FLAG_IDN_MAX) {
+		printf("\t\t\t %-3d: %-25s %s\n", current_flag,
+		       ufs_flags[current_flag].name,
+		       access_type_string(current_flag, FLAG_TYPE,
+					   access_string));
+		current_flag++;
+		memset(access_string, 0, 100);
+	}
+	printf("\n\t-a\t\t read and print all readable flags for the device\n");
+	printf("\n\t-r\t\t read operation (default), for readable flag(s)\n");
+	printf("\n\t-e\t\t set flag operation\n");
+	printf("\n\t-c\t\t clear/reset flag operation\n");
+	printf("\n\t-o\t\t toggle flag operation\n");
+	printf("\n\t-i\t\t Set index parameter(default = 0)\n");
+	printf("\n\t-s\t\t Set selector parameter(default = 0)\n");
+	printf("\n\t-p\t\t path to ufs bsg device\n");
+	printf("\n\t-P/--output_mode Set print output [raw, json, verbose (default)]\n");
+	printf("\n\tExample - Read the bkops operation flag\n"
+		"\t\t%s fl -t 4 -p /dev/ufs-bsg\n", tool_name);
+}
+
+void ufs_spec_ver_help(char *tool_name)
+{
+	printf("\n Get UFS spec version usage:\n");
+	printf("\n\t%s spec_version [-p] <device_path> \n", tool_name);
+	printf("\n\t-p\tpath to ufs bsg device\n");
+}
+
+void ufs_bsg_list_help(char *tool_name)
+{
+	printf("\n Find UFS BSG device list usage:\n");
+	printf("\n\t%s list_bsg\n", tool_name);
+}
+
+int do_device_desc(int fd, __u8 *desc_buff, char *data_file)
+{
+	struct ufs_bsg_request bsg_req = {0};
+	struct ufs_bsg_reply bsg_rsp = {0};
+	__u8 data_buf[QUERY_DESC_DEVICE_MAX_SIZE] = {0};
+	int rc = 0;
+
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
+			QUERY_DESC_IDN_DEVICE, 0,
+			QUERY_DESC_DEVICE_MAX_SIZE, data_buf);
+	if (rc) {
+		print_error("Could not read device descriptor , error %d", rc);
+		goto out;
+	}
+	if (!desc_buff)
+		print_descriptors("Device Descriptor", data_buf,
+				  device_desc_field_name, data_buf[0]);
+	else
+		memcpy(desc_buff, data_buf, data_buf[0]);
+
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write string desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Device Descriptor was written into %s file\n",
+		       data_file);
+	}
+
+out:
+	return rc;
+}
+
+int do_desc(struct tool_options *opt)
+{
+	int fd;
+	int rc = OK;
+	int oflag = O_RDWR;
+
+	if (opt->opr == READ_ALL || opt->opr == READ)
+		oflag = O_RDONLY;
+
+	fd = open(opt->path, oflag);
+	if (fd < 0) {
+		perror("Device open");
+		return ERROR;
+	}
+
+	if (opt->opr == READ_ALL) {
+		if (do_device_desc(fd, 0, 0) || do_unit_desc(fd, 0, 0) ||
+		    do_interconnect_desc(fd, 0) || do_geo_desc(fd, 0) ||
+		    do_power_desc(fd, 0) || do_health_desc(fd, 0) ||
+		    do_conf_desc(fd, READ, 0, 0))
+			rc = ERROR;
+		goto out;
+	}
+
+	switch (opt->idn) {
+	case QUERY_DESC_IDN_DEVICE:
+		rc = do_device_desc(fd, 0, opt->data);
+		break;
+	case QUERY_DESC_IDN_CONFIGURAION:
+		rc = do_conf_desc(fd, opt->opr, opt->index, (char *)opt->data);
+		break;
+	case QUERY_DESC_IDN_UNIT:
+		rc = do_unit_desc(fd, opt->index, opt->data);
+		break;
+	case QUERY_DESC_IDN_GEOMETRY:
+		rc = do_geo_desc(fd, opt->data);
+		break;
+	case QUERY_DESC_IDN_POWER:
+		rc = do_power_desc(fd, opt->data);
+		break;
+	case QUERY_DESC_IDN_STRING:
+		rc = do_string_desc(fd, (char *)opt->data, opt->idn, opt->opr,
+				    opt->index, opt->data);
+		break;
+	case QUERY_DESC_IDN_HEALTH:
+		rc = do_health_desc(fd, opt->data);
+		break;
+	case QUERY_DESC_IDN_INTERCONNECT:
+		rc = do_interconnect_desc(fd, opt->data);
+		break;
+	default:
+		print_error("Unsupported Descriptor type %d", opt->idn);
+		rc = -EINVAL;
+		break;
+	}
+
+out:
+	close(fd);
+	return rc;
+}
+
+int do_get_ufs_spec_ver(struct tool_options *opt)
+{
+	int fd;
+	int rc = OK;
+	int oflag = O_RDWR;
+	__u8 dev_desc[QUERY_DESC_DEVICE_MAX_SIZE] = {0};
+	__u16 *ufs_spec;
+	__u16 spec_value;
+	__u8 maj_vers, minor_ver, vers_suf = 0;
+	struct desc_field_offset *tmp = &device_desc_field_name[0x10];
+
+	if (opt->opr == READ_ALL || opt->opr == READ)
+		oflag = O_RDONLY;
+
+	fd = open(opt->path, oflag);
+	if (fd < 0) {
+		perror("Device open");
+		return ERROR;
+	}
+
+	rc = do_device_desc(fd, (__u8 *)&dev_desc, 0);
+	if (rc != OK) {
+		print_error("Could not read device descriptor in order to "
+			    "get device ufs spec version\n");
+	} else {
+		ufs_spec = (__u16 *)&dev_desc[tmp->offset];
+		spec_value = be16toh(*ufs_spec);
+		maj_vers = spec_value >> 8 & 0xff;
+		minor_ver = spec_value >> 4 & 0x0f;
+		vers_suf = spec_value & 0x0f;
+		if (vers_suf)
+			printf("%d.%d%d\n", maj_vers, minor_ver, vers_suf);
+		else
+			printf("%d.%d\n", maj_vers, minor_ver);
+	}
+
+	close(fd);
+	return rc;
+}
+
+int do_get_ufs_bsg_list(struct tool_options *opt)
+{
+	int rc;
+	int counter = 0;
+
+	rc = find_bsg_device("/dev", &counter);
+	if (!counter)
+		printf("Didn't found UFS BSG device\n");
+	return rc;
+}
+
+int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
+			struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
+			__u8 opcode, __u8 idn, __u8 index, __u8 sel,
+			__u16 req_buf_len, __u16 res_buf_len, __u8 *data_buf)
+{
+	int rc = OK;
+	__u8 res_code;
+	__u16 len = res_buf_len;
+
+	if (req_buf_len > 0)
+		len = req_buf_len;
+
+	prepare_upiu(bsg_req, query_req_func, len, opcode, idn,
+		index, sel);
+
+	rc = send_bsg_scsi_trs(fd, bsg_req, bsg_rsp, req_buf_len, res_buf_len,
+			data_buf);
+
+	if (rc) {
+		print_error("%s: query failed, status %d idn: %d, i: %d, s: %d",
+			__func__, rc, idn, index, sel);
+		rc = ERROR;
+		goto out;
+	}
+
+	res_code = (be32toh(bsg_rsp->upiu_rsp.header.dword_1) >> 8) & 0xff;
+	if (res_code) {
+		query_response_error(res_code, idn);
+		rc = ERROR;
+	}
+out:
+	return rc;
+}
+
 int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
 			__u16 desc_buf_len, __u8 *data_buf)
@@ -1193,7 +1414,7 @@ int do_attributes(struct tool_options *opt)
 
 	fd = open(opt->path, oflag);
 	if (fd < 0) {
-		print_error("open");
+		perror("Device open");
 		return ERROR;
 	}
 	tmp = &ufs_attrs[opt->idn];
@@ -1277,7 +1498,7 @@ int do_flags(struct tool_options *opt)
 {
 	int fd;
 	int rc = OK;
-	__u8 opcode, flag_idn;
+	__u8 opcode, flag_idn, value;
 	struct flag_fields *tmp;
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
@@ -1288,7 +1509,7 @@ int do_flags(struct tool_options *opt)
 
 	fd = open(opt->path, oflag);
 	if (fd < 0) {
-		print_error("open");
+		perror("Device open");
 		return ERROR;
 	}
 
@@ -1311,9 +1532,9 @@ int do_flags(struct tool_options *opt)
 					UPIU_QUERY_OPCODE_READ_FLAG, flag_idn,
 					opt->index, opt->selector, 0, 0, 0);
 			if (rc == OK) {
-				printf("%-26s := 0x%01x\n", tmp->name,
-					be32toh(bsg_rsp.upiu_rsp.qr.value) &
-					0xff);
+				value = be32toh(bsg_rsp.upiu_rsp.qr.value) &
+						0xff;
+				print_flag(tmp->name, value);
 			} else {
 				/* on failure make note and keep going */
 				print_error("Read for flag %s failed",
@@ -1347,14 +1568,11 @@ int do_flags(struct tool_options *opt)
 				 UPIU_QUERY_OPCODE_READ_FLAG, opt->idn,
 				 opt->index, opt->selector, 0, 0, 0);
 		if (rc == OK) {
+			value = be32toh(bsg_rsp.upiu_rsp.qr.value) & 0xff;
 			if (opt->idn < ARRAY_SIZE(ufs_flags))
-				printf("%-26s := 0x%01x\n", tmp->name,
-					be32toh(bsg_rsp.upiu_rsp.qr.value) &
-					0xff);
+				print_flag(tmp->name, value);
 			else
-				printf("%-26s := 0x%01x\n", "Flag value",
-				       be32toh(bsg_rsp.upiu_rsp.qr.value) &
-				       0xff);
+				print_flag("Flag value", value);
 		} else {
 			print_error("Read for flag %d failed", opt->idn);
 		}

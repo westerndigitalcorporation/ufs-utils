@@ -54,5 +54,13 @@ struct tool_options {
 	char path[PATH_MAX];
 };
 
+enum print_type {
+	VERBOSE =	0,
+	JSON,
+	RAW_VALUE
+};
+
+extern char gl_pr_type;
+
 int init_options(int opt_cnt, char **opt_arr, struct tool_options *options);
 #endif /* OPTIONS_H_ */

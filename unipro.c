@@ -514,7 +514,7 @@ int do_uic(struct tool_options *opt)
 
 	fd = open(opt->path, oflag);
 	if (fd < 0) {
-		print_error("open");
+		perror("Device open");
 		return ERROR;
 	}
 
