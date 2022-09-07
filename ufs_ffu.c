@@ -208,5 +208,5 @@ void ffu_help(char *tool_name)
 		"which FFU file will be split (optional)\n");
 	printf("\n\t-w\t path to FFU file\n");
 	printf("\n\t-g\t sg struct ver - 0: SG_IO_VER4 (default), 1: SG_IO_VER3\n");
-	printf("\n\t-p\t bsg device path for FFU, ufs-bsg for Check FFU status\n");
+	printf("\n\t-p\t block device path for FFU, ufs-bsg for Check FFU status\n");
 }

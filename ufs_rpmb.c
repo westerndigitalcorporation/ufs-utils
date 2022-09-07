@@ -62,7 +62,7 @@ static const char *const rpmb_res_txt[] = {
 #define RPMB_NONCE_SIZE 16
 #define RPMB_DATA_SIZE 256
 
-#define UFS_BSG_PATH "/dev/ufs-bsg"
+#define UFS_BSG_PATH "/dev/ufs-bsg0"
 
 #define DEFAULT_RPMB_NUM_BLOCKS 64
 

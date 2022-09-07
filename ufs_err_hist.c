@@ -252,5 +252,5 @@ void err_hist_help(char *tool_name)
 	printf("\n Error history command usage:\n");
 	printf("\n\t%s err_hist [-p] <path to device> \n", tool_name);
 	printf("\n\t-g\tsg struct ver - 0: SG_IO_VER4 (default), 1: SG_IO_VER3\n");
-	printf("\n\t-p\tPath to the bsg device\n");
+	printf("\n\t-p\tPath to the block device\n");
 }

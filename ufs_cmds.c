@@ -141,7 +141,7 @@ struct desc_field_offset device_geo_desc_conf_field_name[] = {
 	{"bSupportedSecRTypes",			0x1D, BYTE},
 	{"wSupportedMemoryTypes",		0x1E, WORD},
 	{"dSystemCodeMaxNAllocU",		0x20, DWORD},
-	{"wSystemCodeCapAdjFac",		0x24, DWORD},
+	{"wSystemCodeCapAdjFac",		0x24, WORD},
 	{"dNonPersistMaxNAllocU",		0x26, DWORD},
 	{"wNonPersistCapAdjFac",		0x2A, WORD},
 	{"dEnhanced1MaxNAllocU",		0x2C, DWORD},
