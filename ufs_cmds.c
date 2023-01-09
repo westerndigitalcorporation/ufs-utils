@@ -215,8 +215,8 @@ struct desc_field_offset device_unit_rpmb_desc_field_name[] = {
 	{"bRPMBRegion3Size",		0x16, BYTE},
 	{"bProvisioningType",		0x17, BYTE},
 	{"qPhyMemResourceCount",	0x18, DDWORD},
-	{"wContextCapabilities",	0x20, WORD},
-	{"wContextCapabilities",	0x22, BYTE},
+	{"Reserved",			0x20, WORD},
+	{"Reserved",			0x22, BYTE},
 };
 
 struct desc_field_offset device_power_desc_conf_field_name[] = {
