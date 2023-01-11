@@ -1124,7 +1124,7 @@ void desc_help(char *tool_name)
 	printf("\n\t%s desc [-t] <descriptor idn> [-a|-r|-w] <data> [-p] "
 		"<device_path> \n", tool_name);
 	printf("\n\t-t\t\t description type idn\n"
-		"\t\t\t Available description types based on UFS ver 3.1 :\n"
+		"\t\t\t Available description types based on UFS ver 4.0 :\n"
 		"\t\t\t 0:\tDevice\n"
 		"\t\t\t 1:\tConfiguration\n"
 		"\t\t\t 2:\tUnit\n"
@@ -1160,7 +1160,7 @@ void attribute_help(char *tool_name)
 		" <device_path> \n", tool_name);
 	printf("\n\t-t\t Attributes type idn\n"
 		"\t\t Available attributes and its access based on"
-		" UFS ver 3.1 :\n");
+		" UFS ver 4.0 :\n");
 
 	while (current_att < ARRAY_SIZE(ufs_attrs)) {
 		printf("\t\t\t %-3d: %-25s %s\n",
@@ -1192,7 +1192,7 @@ void flag_help(char *tool_name)
 	printf("\n\t%s fl [-t] <flag idn> [-a|-r|-o|-e] [-p]"
 		" <device_path>\n", tool_name);
 	printf("\n\t-t\t Flags type idn\n"
-		"\t\t Available flags and its access, based on UFS ver 3.1 :\n");
+		"\t\t Available flags and its access, based on UFS ver 4.0 :\n");
 
 	while (current_flag < QUERY_FLAG_IDN_MAX) {
 		printf("\t\t\t %-3d: %-25s %s\n", current_flag,
