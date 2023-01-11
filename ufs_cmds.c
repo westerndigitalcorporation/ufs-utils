@@ -270,12 +270,12 @@ struct attr_fields ufs_attrs[] = {
 	{"bRefClkGatingWaitTime", BYTE, URD, READ_ONLY, DEV},
 	{"bDeviceCaseRoughTemperaure", BYTE, URD, READ_ONLY, DEV},
 	{"bDeviceTooHighTempBoundary", BYTE, URD, READ_ONLY, DEV},
-/*1A*/  {"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
-/*1B*/  {"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
-/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV | ARRAY},
-/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV | ARRAY},
-/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV | ARRAY},
-/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV | ARRAY},
+/*1A*/	{"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
+/*1B*/	{"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
+/*1C*/	{"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1D*/	{"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1E*/	{"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1F*/	{"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV | ARRAY},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -286,12 +286,12 @@ struct attr_fields ufs_attrs[] = {
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-/*2C*/  {"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
-	{"bRefreshFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-	{"bRefreshUnit", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV}
+/*2A*/	{"bEXTIIDEn", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
+/*2B*/	{"wHostHintCacheSize", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*2C*/	{"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
+/*2D*/	{"bRefreshFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*2E*/	{"bRefreshUnit", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*2F*/	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV}
 };
 
 struct flag_fields ufs_flags[] = {
@@ -546,8 +546,11 @@ static void print_attribute_verbose(struct attr_fields *attr, __u8 *attr_buffer)
 		printf("%-26s := 0x%02x\n", attr->name, attr_buffer[0]);
 	else if (attr->width_in_bytes == WORD)
 		printf("%-26s := 0x%04x\n", attr->name, *(__u16 *)attr_buffer);
-	else
+	else if (attr->width_in_bytes == DWORD)
 		printf("%-26s := 0x%08x\n", attr->name, *(__u32 *)attr_buffer);
+	else
+		printf("%-26s := 0x%llx\n", attr->name,
+			*(__u64 *)attr_buffer);
 }
 
 static void print_attribute_raw(struct attr_fields *attr, __u8 *attr_buffer)
@@ -558,8 +561,10 @@ static void print_attribute_raw(struct attr_fields *attr, __u8 *attr_buffer)
 		printf("0x%02x\n", attr_buffer[0]);
 	else if (attr->width_in_bytes == WORD)
 		printf("0x%04x\n", *(__u16 *)attr_buffer);
-	else
+	else if (attr->width_in_bytes == DWORD)
 		printf("0x%08x\n", *(__u32 *)attr_buffer);
+	else
+		printf("0x%llx\n", *(__u64 *)attr_buffer);
 }
 
 static void print_attribute_json(struct attr_fields *attr, __u8 *attr_buffer)
@@ -574,9 +579,12 @@ static void print_attribute_json(struct attr_fields *attr, __u8 *attr_buffer)
 	else if (attr->width_in_bytes == WORD)
 		printf("%c%s%c:%d\n", '"', attr->name, '"',
 		       *(__u16 *)attr_buffer);
-	else
+	else if (attr->width_in_bytes == DWORD)
 		printf("%c%s%c:%d\n", '"', attr->name, '"',
 		       *(__u32 *)attr_buffer);
+	else
+		printf("%c%s%c:%llu\n", '"', attr->name, '"',
+		       *(__u64 *)attr_buffer);
 
 	printf("}\n");
 }
@@ -1450,7 +1458,7 @@ int do_attributes(struct tool_options *opt)
 		switch (tmp->width_in_bytes) {
 		case BYTE:
 			if (attr_value > 0xFF) {
-				print_error("Wrong write data for %s attr\n",
+				print_error("Wrong write data for %s attr",
 					tmp->name);
 				rc = ERROR;
 				goto out;
@@ -1458,14 +1466,19 @@ int do_attributes(struct tool_options *opt)
 			break;
 		case WORD:
 			if (attr_value > 0xFFFF) {
-				print_error("Wrong write data for %s attr\n",
+				print_error("Wrong write data for %s attr",
 					tmp->name);
 				rc = ERROR;
 				goto out;
 			}
 			break;
 		case DWORD:
-			/* avoid -switch warning - no need to check value */
+			if (attr_value > 0xFFFFFFFF) {
+				print_error("Wrong write data for %s attr",
+					tmp->name);
+				rc = ERROR;
+				goto out;
+			}
 			break;
 		default:
 			print_warn("Undefined attr %u", opt->idn);
@@ -1477,6 +1490,11 @@ skip_width_check:
 				UPIU_QUERY_OPCODE_WRITE_ATTR, opt->idn,
 				opt->index, opt->selector, 0, 0, 0);
 	} else if (opt->opr == READ) {
+		if (tmp->acc_mode == WRITE_ONLY) {
+			print_error("The attribute is write only");
+			goto out;
+		}
+
 		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 				UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 				UPIU_QUERY_OPCODE_READ_ATTR, opt->idn,
