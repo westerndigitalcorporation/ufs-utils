@@ -238,6 +238,16 @@ struct desc_field_offset device_health_desc_conf_field_name[] = {
 	{"dRefreshProgress",	0x29, DWORD},
 };
 
+struct desc_field_offset device_fbo_desc_field_name[] = {
+	{"bLength",				0x00, BYTE},
+	{"wFBOVersion",				0x01, WORD},
+	{"dFBORecommendedLBARangeSize",		0x03, DWORD},
+	{"dFBOMaxLBARangeSize",			0x07, DWORD},
+	{"dFBOMinLBARangeSize",			0x0b, DWORD},
+	{"bFBOMaxLBARangeCount",		0x0f, BYTE},
+	{"wFBOLBARangeAlignment",		0x10, WORD}
+};
+
 struct query_err_res {
 	char *name;
 	__u8 opcode;
@@ -291,7 +301,11 @@ struct attr_fields ufs_attrs[] = {
 /*2C*/	{"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
 /*2D*/	{"bRefreshFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 /*2E*/	{"bRefreshUnit", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-/*2F*/	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV}
+/*2F*/	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*30*/	{ATTR_RSRV()},
+/*31h*/ {"bFBOControl", BYTE, UWRT, WRITE_ONLY, DEV},
+/*32h*/ {"bFBOExecuteThreshold", BYTE, (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*33h*/ {"bFBOProgressState", BYTE, URD, READ_ONLY, DEV}
 };
 
 struct flag_fields ufs_flags[] = {
@@ -1083,6 +1097,10 @@ static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 			(data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE_2_1))
 			unoff = true;
 	break;
+	case QUERY_DESC_IDN_FBO:
+		if (data_buf[0] != QUERY_DESC_FBO_MAX_SIZE)
+			unoff = true;
+	break;
 	}
 
 	if (unoff) {
@@ -1117,7 +1135,8 @@ void desc_help(char *tool_name)
 		"\t\t\t 7:\tGeometry\n"
 		"\t\t\t 8:\tPower\n"
 		"\t\t\t 9:\tDevice Health\n"
-		"\t\t\t 10..255: RFU\n");
+		"\t\t\t 10:\tFBO\n"
+		"\t\t\t 11..255: RFU\n");
 	printf("\n\t-r\t\t read operation (default) for readable descriptors\n");
 	printf("\n\t-w\t\t write operation , for writable descriptors\n");
 	printf("\t\t\t Set the input configuration file after -w opt\n");
@@ -1244,6 +1263,25 @@ out:
 	return rc;
 }
 
+static int do_fbo_desc(int fd)
+{
+	struct ufs_bsg_request bsg_req = {0};
+	struct ufs_bsg_reply bsg_rsp = {0};
+	__u8 data_buf[QUERY_DESC_FBO_MAX_SIZE] = {0};
+	int ret = 0;
+
+	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_FBO, 0,
+			   QUERY_DESC_FBO_MAX_SIZE, data_buf);
+	if (ret) {
+		print_error("Could not read FBO descriptor error %d", ret);
+	} else {
+		print_descriptors("FBO Descriptor:", data_buf,
+				  device_fbo_desc_field_name, data_buf[0]);
+	}
+
+	return ret;
+}
+
 int do_desc(struct tool_options *opt)
 {
 	int fd;
@@ -1293,6 +1331,9 @@ int do_desc(struct tool_options *opt)
 		break;
 	case QUERY_DESC_IDN_INTERCONNECT:
 		rc = do_interconnect_desc(fd, opt->data);
+		break;
+	case QUERY_DESC_IDN_FBO:
+		rc = do_fbo_desc(fd);
 		break;
 	default:
 		print_error("Unsupported Descriptor type %d", opt->idn);
