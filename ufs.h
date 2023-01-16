@@ -81,6 +81,10 @@ enum attr_idn {
 	QUERY_ATTR_IDN_REFRESH_FREQ			= 0x2D,
 	QUERY_ATTR_IDN_REFRESH_UNIT			= 0x2E,
 	QUERY_ATTR_IDN_REFRESH_METHOD			= 0x2F,
+	QUERY_ATTR_IDN_RESERVED4			= 0x30,
+	QUERY_ATTR_IDN_FBO_CONTROL			= 0x31,
+	QUERY_ATTR_IDN_FBO_EXE_THRESHOLD		= 0x32,
+	QUERY_ATTR_IDN_FBO_PROGRESS_STATE		= 0x33,
 	QUERY_ATTR_IDN_MAX
 };
 
@@ -96,8 +100,8 @@ enum desc_idn {
 	QUERY_DESC_IDN_GEOMETRY		= 0x7,
 	QUERY_DESC_IDN_POWER		= 0x8,
 	QUERY_DESC_IDN_HEALTH		= 0x9,
-	QUERY_DESC_IDN_RFU_3		= 0xA,
-	QUERY_DESC_IDN_MAX = 0xFF,
+	QUERY_DESC_IDN_FBO		= 0xA,
+	QUERY_DESC_IDN_MAX = 0xFF
 };
 
 /* UTP QUERY Transaction Specific Fields OpCode */
@@ -122,12 +126,11 @@ enum ufs_desc_max_size {
 	QUERY_DESC_GEOMETRY_MAX_SIZE_3_0	= 0x48,
 	QUERY_DESC_HEALTH_MAX_SIZE_2_1		= 0x25,
 
-	/* Max descriptors size for 3.1 UFS spec */
+	/* Max descriptors size for 3.1,4.0 UFS spec */
 	QUERY_DESC_DEVICE_MAX_SIZE		= 0x59,
 	QUERY_DESC_CONFIGURAION_MAX_SIZE	= 0xe6,
 	QUERY_DESC_GEOMETRY_MAX_SIZE		= 0x57,
 	QUERY_DESC_UNIT_MAX_SIZE		= 0x2d,
-
 	/*
 	 * Max. 126 UNICODE characters (2 bytes per character) plus 2 bytes
 	 * of descriptor header.
@@ -135,7 +138,8 @@ enum ufs_desc_max_size {
 	QUERY_DESC_STRING_MAX_SIZE		= 0xFE,
 	QUERY_DESC_INTERCONNECT_MAX_SIZE	= 0x06,
 	QUERY_DESC_POWER_MAX_SIZE		= 0x62,
-	QUERY_DESC_HEALTH_MAX_SIZE		= 0x2d
+	QUERY_DESC_HEALTH_MAX_SIZE		= 0x2d,
+	QUERY_DESC_FBO_MAX_SIZE			= 0x12
 };
 
 /* UPIU Read/Write flags */
