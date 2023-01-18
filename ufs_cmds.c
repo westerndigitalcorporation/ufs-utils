@@ -1605,7 +1605,7 @@ void attribute_help(char *tool_name)
 		"\t\t Available attributes and its access based on"
 		" UFS ver 4.0 :\n");
 
-	while (current_att < ARRAY_SIZE(ufs_attrs)) {
+	while (current_att < QUERY_ATTR_IDN_MAX) {
 		printf("\t\t\t %-3d: %-25s %s\n",
 			current_att,
 			ufs_attrs[current_att].name,
@@ -1914,10 +1914,11 @@ int do_attributes(struct tool_options *opt)
 	if (opt->opr == READ_ALL) {
 		att_idn = QUERY_ATTR_IDN_BOOT_LU_EN;
 
-		while (att_idn < ARRAY_SIZE(ufs_attrs)) {
+		while (att_idn < QUERY_ATTR_IDN_MAX) {
 			tmp = &ufs_attrs[att_idn];
 			if (tmp->acc_type == ACC_INVALID ||
-				tmp->acc_mode == WRITE_ONLY) {
+			    tmp->acc_mode == WRITE_ONLY ||
+			    !strcmp(tmp->name, "VendorSpecificAttr")) {
 				att_idn++;
 				continue;
 			}
@@ -2024,7 +2025,8 @@ int do_flags(struct tool_options *opt)
 		while (flag_idn < ARRAY_SIZE(ufs_flags)) {
 			tmp = &ufs_flags[flag_idn];
 			if (tmp->acc_type == ACC_INVALID ||
-				tmp->acc_type == UWRT) {
+			    tmp->acc_type == UWRT ||
+			    !strcmp(tmp->name, "VendorSpecificFlag")) {
 				flag_idn++;
 				continue;
 			}
