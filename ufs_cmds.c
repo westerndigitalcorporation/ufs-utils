@@ -1989,8 +1989,9 @@ skip_width_check:
 			if (opt->idn > ARRAY_SIZE(ufs_attrs) ||
 			    tmp->acc_type == ACC_INVALID)
 				tmp = 0;
+			else
+				print_attribute(tmp, (__u8 *)&attr_value);
 		}
-		print_attribute(tmp, (__u8 *)&attr_value);
 	}
 out:
 	close(fd);
@@ -2038,11 +2039,11 @@ int do_flags(struct tool_options *opt)
 			if (rc == OK) {
 				value = be32toh(bsg_rsp.upiu_rsp.qr.value) &
 						0xff;
-				print_flag(tmp->name, value);
-			} else {
-				/* on failure make note and keep going */
-				print_error("Read for flag %s failed",
-					    tmp->name);
+				if (opt->idn > ARRAY_SIZE(ufs_flags) ||
+				    tmp->acc_type == ACC_INVALID)
+					tmp = 0;
+				else
+					print_flag(tmp->name, value);
 			}
 
 			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
