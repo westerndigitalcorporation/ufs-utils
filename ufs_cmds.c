@@ -1145,13 +1145,14 @@ static int do_unit_desc(int fd, __u8 lun, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_UNIT_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_UNIT, lun,
-			  QUERY_DESC_UNIT_MAX_SIZE, data_buf);
+			  QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read unit descriptor error", rc);
+		if (rc == ERROR)
+			print_error("Could not read unit descriptor");
 		goto out;
 	}
 
@@ -1179,14 +1180,14 @@ static int do_interconnect_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_INTERCONNECT_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_INTERCONNECT,
-			  0, QUERY_DESC_INTERCONNECT_MAX_SIZE, data_buf);
+			  0, QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read interconnect descriptor error %d",
-			    rc);
+		if (rc == ERROR)
+			print_error("Could not read interconnect descriptor");
 		goto out;
 	}
 
@@ -1212,14 +1213,14 @@ static int do_geo_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_GEOMETRY_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_GEOMETRY, 0,
-			  QUERY_DESC_GEOMETRY_MAX_SIZE, data_buf);
+			  QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read geometry descriptor , error %d",
-			    rc);
+		if (rc == ERROR)
+			print_error("Could not read geometry descriptor");
 		goto out;
 	}
 
@@ -1245,14 +1246,15 @@ static int do_power_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_POWER_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
-			  QUERY_DESC_IDN_POWER, 0, QUERY_DESC_POWER_MAX_SIZE,
+			  QUERY_DESC_IDN_POWER, 0, QUERY_DESC_MAX_SIZE,
 			  data_buf);
 	if (rc) {
-		print_error("Could not read power descriptor , error %d", rc);
+		if (rc == ERROR)
+			print_error("Could not read power descriptor");
 		goto out;
 	}
 
@@ -1286,14 +1288,14 @@ static int do_health_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_HEALTH_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_HEALTH, 0,
-			  QUERY_DESC_HEALTH_MAX_SIZE, data_buf);
+			  QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read device health descriptor error %d",
-			    rc);
+		if (rc == ERROR)
+			print_error("Could not read device health descriptor");
 		goto out;
 	}
 
@@ -1375,7 +1377,7 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 	int file_size;
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 conf_desc_buf[QUERY_DESC_CONFIGURAION_MAX_SIZE] = {0};
+	__u8 conf_desc_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int offset, i;
 	int data_fd = INVALID;
 
@@ -1413,11 +1415,11 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 
 		rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
 				QUERY_DESC_IDN_CONFIGURAION,
-				index, QUERY_DESC_CONFIGURAION_MAX_SIZE,
+				index, QUERY_DESC_MAX_SIZE,
 				conf_desc_buf);
 		if (rc) {
-			print_error("Coudn't read config descriptor error %d",
-				    rc);
+			if (rc == ERROR)
+				print_error("Coudn't read config descriptor");
 
 			goto out;
 		}
@@ -1549,8 +1551,8 @@ static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 	if (unoff) {
 		int file_status;
 
-		rc = ERROR;
-		print_error("Unofficial %s desc size, len = 0x%x",
+		rc = WARNING;
+		print_warn("Unofficial %s desc size, len = 0x%x",
 			    (char *)desc_text[idn], data_buf[0]);
 		file_status = write_file("unofficial.dat", data_buf,
 					 data_buf[0]);
@@ -1675,14 +1677,15 @@ int do_device_desc(int fd, __u8 *desc_buff, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_DEVICE_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
-			QUERY_DESC_IDN_DEVICE, 0,
-			QUERY_DESC_DEVICE_MAX_SIZE, data_buf);
+			  QUERY_DESC_IDN_DEVICE, 0,
+			  QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read device descriptor , error %d", rc);
+		if (rc == ERROR)
+			print_error("Could not read device descriptor");
 		goto out;
 	}
 	if (!desc_buff)
@@ -1710,19 +1713,22 @@ static int do_fbo_desc(int fd)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_FBO_MAX_SIZE] = {0};
-	int ret = 0;
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
+	int rc = 0;
 
-	ret = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_FBO, 0,
-			   QUERY_DESC_FBO_MAX_SIZE, data_buf);
-	if (ret) {
-		print_error("Could not read FBO descriptor error %d", ret);
-	} else {
-		print_descriptors("FBO Descriptor:", data_buf,
-				  device_fbo_desc_field_name, data_buf[0]);
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_FBO, 0,
+			   QUERY_DESC_MAX_SIZE, data_buf);
+	if (rc) {
+		if (rc == ERROR)
+			print_error("Could not read FBO descriptor");
+
+		goto out;
 	}
 
-	return ret;
+	print_descriptors("FBO Descriptor:", data_buf,
+			  device_fbo_desc_field_name, data_buf[0]);
+out:
+	return rc;
 }
 
 int do_desc(struct tool_options *opt)
