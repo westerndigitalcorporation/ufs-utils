@@ -16,6 +16,8 @@
 */
 #define MAX_IOCTL_BUF_SIZE (256L * 1024)
 
+#define QUERY_DESC_MAX_SIZE       255
+
 enum sg_struct_type {
 	SG4_TYPE = 0,
 	SG3_TYPE

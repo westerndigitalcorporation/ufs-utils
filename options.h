@@ -8,6 +8,7 @@
 #define OK 0
 #define ERROR -1
 #define INVALID -1
+#define WARNING -2
 
 #ifndef _UAPI_LINUX_LIMITS_H
 #define PATH_MAX 4096
