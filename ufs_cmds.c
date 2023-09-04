@@ -274,9 +274,9 @@ struct attr_fields ufs_attrs[] = {
 	{"wExceptionEventStatus", WORD, URD, READ_ONLY, DEV},
 	{"dSecondsPassed", DWORD, UWRT, WRITE_ONLY, DEV},
 	{"wContextConf", WORD, (URD|UWRT), (READ_NRML|WRITE_VLT), ARRAY},
-	{"Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-	{"Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-	{"Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
 	{"bDeviceFFUStatus", BYTE, URD, READ_ONLY, DEV},
 	{"bPSAState", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"dPSADataSize", DWORD, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
@@ -526,10 +526,10 @@ struct flag_fields ufs_flags[] = {
 	{"fRefreshEnable", UWRT, (WRITE_ONLY|WRITE_VLT), DEV},
 	{"fPhyResourceRemoval", (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"fBusyRTC", URD, READ_ONLY, DEV},
-	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+	{FLAG_RSRV()},
 	{"fPermanentlyDisableFw", (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
-	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-/*D*/	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+	{FLAG_RSRV()},
+/*D*/	{FLAG_RSRV()},
 /*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
 /*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
 /*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT), (READ_NRML|WRITE_VLT),
@@ -1923,7 +1923,7 @@ int do_attributes(struct tool_options *opt)
 		while (att_idn < QUERY_ATTR_IDN_MAX) {
 			tmp = &ufs_attrs[att_idn];
 			if (tmp->acc_type == ACC_INVALID ||
-			    tmp->acc_mode == WRITE_ONLY ||
+			    tmp->acc_mode & WRITE_ONLY ||
 			    !strcmp(tmp->name, "VendorSpecificAttr")) {
 				att_idn++;
 				continue;
@@ -1981,7 +1981,7 @@ skip_width_check:
 				UPIU_QUERY_OPCODE_WRITE_ATTR, opt->idn,
 				opt->index, opt->selector, 0, 0, 0);
 	} else if (opt->opr == READ) {
-		if (tmp->acc_mode == WRITE_ONLY) {
+		if (tmp->acc_mode & WRITE_ONLY) {
 			print_error("The attribute is write only");
 			goto out;
 		}
@@ -2032,7 +2032,7 @@ int do_flags(struct tool_options *opt)
 		while (flag_idn < ARRAY_SIZE(ufs_flags)) {
 			tmp = &ufs_flags[flag_idn];
 			if (tmp->acc_type == ACC_INVALID ||
-			    tmp->acc_type == UWRT ||
+			    tmp->acc_mode & WRITE_ONLY ||
 			    !strcmp(tmp->name, "VendorSpecificFlag")) {
 				flag_idn++;
 				continue;
@@ -2045,11 +2045,7 @@ int do_flags(struct tool_options *opt)
 			if (rc == OK) {
 				value = be32toh(bsg_rsp.upiu_rsp.qr.value) &
 						0xff;
-				if (opt->idn > ARRAY_SIZE(ufs_flags) ||
-				    tmp->acc_type == ACC_INVALID)
-					tmp = 0;
-				else
-					print_flag(tmp->name, value);
+				print_flag(tmp->name, value);
 			}
 
 			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
@@ -2074,6 +2070,11 @@ int do_flags(struct tool_options *opt)
 				    opt->idn);
 	break;
 	case READ:/*Read operation */
+		if (tmp->acc_mode & WRITE_ONLY) {
+			print_error("The flag is write only");
+			goto out;
+		}
+
 		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 				 UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 				 UPIU_QUERY_OPCODE_READ_FLAG, opt->idn,
@@ -2095,6 +2096,7 @@ int do_flags(struct tool_options *opt)
 	break;
 	}
 
+out:
 	close(fd);
 	return rc;
 }
