@@ -10,11 +10,12 @@
 #define BLOCK_SIZE 512
 
 /*
- * Generally the max HW max chunk is 512KB,
- * but in order to be in safe side tool using 256KB as max chunk size
- * between user and kernel space
+ * Generally the max HW max chunk is 512KB
+ * Default chunk size is 256KB
 */
-#define MAX_IOCTL_BUF_SIZE (256L * 1024)
+#define MAX_IOCTL_BUF_SIZE (512L * 1024)
+
+#define DEFAULT_IOCTL_BUF_SIZE (256L * 1024)
 
 #define QUERY_DESC_MAX_SIZE       255
 

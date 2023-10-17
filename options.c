@@ -663,7 +663,7 @@ static int verify_arg_and_set_default(struct tool_options *options)
 
 	if (options->config_type_inx == FFU_TYPE) {
 		if (options->size == INVALID)
-			options->size = MAX_IOCTL_BUF_SIZE;
+			options->size = DEFAULT_IOCTL_BUF_SIZE;
 		if (options->idn == INVALID)
 			/*Default operation*/
 			options->idn = UFS_FFU;
