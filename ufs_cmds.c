@@ -1462,6 +1462,62 @@ out:
 	return rc;
 }
 
+static int do_fbo_desc(int fd)
+{
+	struct ufs_bsg_request bsg_req = {0};
+	struct ufs_bsg_reply bsg_rsp = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
+	int rc = 0;
+
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_FBO, 0,
+			   QUERY_DESC_MAX_SIZE, data_buf);
+	if (rc) {
+		if (rc == ERROR)
+			print_error("Could not read FBO descriptor");
+
+		goto out;
+	}
+
+	print_descriptors("FBO Descriptor:", data_buf,
+			  device_fbo_desc_field_name, data_buf[0]);
+out:
+	return rc;
+}
+
+int do_vendor_desc(int fd, __u8 idn, char *data_file)
+{
+	struct ufs_bsg_request bsg_req = {0};
+	struct ufs_bsg_reply bsg_rsp = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
+	int rc = 0;
+
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
+			  idn, 0, QUERY_DESC_MAX_SIZE, data_buf);
+	if (rc) {
+		if (rc == ERROR)
+			print_error("Could not read the descriptor");
+		goto out;
+	}
+
+	gl_pr_type = RAW_VALUE;
+	print_descriptors("Reserved/Vendor Descriptor", data_buf, 0,
+			   data_buf[0]);
+
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write string desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Reserved/Vendor Descriptor was written into %s file\n",
+		       data_file);
+	}
+
+out:
+	return rc;
+}
+
 static int find_bsg_device(char* path, int *counter) {
 	struct dirent *files;
 	DIR* dir;
@@ -1709,28 +1765,6 @@ out:
 	return rc;
 }
 
-static int do_fbo_desc(int fd)
-{
-	struct ufs_bsg_request bsg_req = {0};
-	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
-	int rc = 0;
-
-	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_FBO, 0,
-			   QUERY_DESC_MAX_SIZE, data_buf);
-	if (rc) {
-		if (rc == ERROR)
-			print_error("Could not read FBO descriptor");
-
-		goto out;
-	}
-
-	print_descriptors("FBO Descriptor:", data_buf,
-			  device_fbo_desc_field_name, data_buf[0]);
-out:
-	return rc;
-}
-
 int do_desc(struct tool_options *opt)
 {
 	int fd;
@@ -1785,8 +1819,12 @@ int do_desc(struct tool_options *opt)
 		rc = do_fbo_desc(fd);
 		break;
 	default:
-		print_error("Unsupported Descriptor type %d", opt->idn);
-		rc = -EINVAL;
+		if (opt->idn > QUERY_DESC_IDN_MAX) {
+			print_error("Unsupported Descriptor type %d", opt->idn);
+			rc = -EINVAL;
+		} else {
+			rc = do_vendor_desc(fd, opt->idn, opt->data);
+		}
 		break;
 	}
 
