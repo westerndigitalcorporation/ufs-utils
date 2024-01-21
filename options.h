@@ -4,6 +4,7 @@
 #ifndef OPTIONS_H_
 #define OPTIONS_H_
 #include <stdint.h>
+#include "ufs.h"
 
 #define OK 0
 #define ERROR -1
@@ -25,7 +26,7 @@
 
 struct tool_options {
 	/* one of @ufs_cong_type */
-	int config_type_inx;
+	enum ufs_cong_type config_type_inx;
 	/* opt: -t, type - one of @flag_idn / @attr_idn / @desc_idn
 	 * or @unipro attribute idn
 	 */

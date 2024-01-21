@@ -24,32 +24,6 @@
 #include "hmac_sha2.h"
 #include "scsi_bsg_util.h"
 
-enum rpmb_op_type {
-	RPMB_WRITE_KEY      = 0x01,
-	RPMB_READ_CNT       = 0x02,
-	RPMB_WRITE          = 0x03,
-	RPMB_READ           = 0x04,
-	RPMB_READ_RESP      = 0x05,
-	RPMB_SEC_CONF_WRITE = 0x06,
-	RPMB_SEC_CONF_READ  = 0x07,
-
-};
-
-/* description of the sense key values */
-static const char *const rpmb_res_txt[] = {
-	"Success",
-	"General failure",
-	"Authentication failure",
-	"Counter failure",
-	"Address failure",
-	"Write failure",
-	"Read failure",
-	"Authentication Key not yet programmed",
-	"Secure Write Protect Configuration Block access failure",
-	"Invalid Secure Write Protect Block Configuration parameter",
-	"Secure Write Protection not applicable"
-};
-
 #define RESP_KEY_PROG          0x100
 #define RESP_COUNTER_READ      0x200
 #define RESP_DATA_WRITE        0x300
@@ -57,23 +31,13 @@ static const char *const rpmb_res_txt[] = {
 #define RESP_CONF_BLOCK_WRITE  0x600
 #define RESP_CONF_BLOCK_READ   0x700
 
-#define RPMB_KEY_SIZE 32
-#define RPMB_MAC_SIZE 32
-#define RPMB_NONCE_SIZE 16
-#define RPMB_DATA_SIZE 256
-
 #define UFS_BSG_PATH "/dev/ufs-bsg0"
 
-#define DEFAULT_RPMB_NUM_BLOCKS 64
-
-#define MAX_ADDRESS 0xFFFF
 #define SECOND_BYTE_MASK 0xFF00
 
 #define MAX_RETRY 3
 
-static unsigned char key[RPMB_KEY_SIZE];
-
-#define CUC(x) ((const unsigned char *)(x))
+static unsigned char key_buff[RPMB_KEY_SIZE];
 
 extern int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 		struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
@@ -105,14 +69,6 @@ static int rpmb_calc_hmac_sha256(struct rpmb_frame *frames, ssize_t blocks_cnt,
 	hmac_sha256_final(&ctx, mac, mac_size);
 
 	return 0;
-}
-
-static void print_operation_error(__u16 result)
-{
-	if (result <= 0xA)
-		printf("\n %s\n", rpmb_res_txt[result]);
-	else
-		printf("\n Unsupported RPMB Operation Error %x\n", result);
 }
 
 static int do_rpmb_op(int fd, struct rpmb_frame *frame_in, __u32 in_cnt,
@@ -547,32 +503,6 @@ out:
 		return ret;
 }
 
-static unsigned char *get_auth_key(char *key_path)
-{
-	unsigned char *pkey = NULL;
-	int key_fd = INVALID;
-	ssize_t read_size;
-
-	if (key_path == NULL)
-		return NULL;
-
-	key_fd = open(key_path, O_RDONLY);
-	if (key_fd < 0) {
-		perror("Key file open");
-	} else {
-		read_size = read(key_fd, key, RPMB_KEY_SIZE);
-		if (read_size < RPMB_KEY_SIZE) {
-			print_error("Key must be %d bytes length,was read %d",
-				    RPMB_KEY_SIZE, read_size);
-		} else
-			pkey = key;
-	}
-
-	if (key_fd != INVALID)
-		close(key_fd);
-	return pkey;
-}
-
 int do_rpmb(struct tool_options *opt)
 {
 	int rc = INVALID;
@@ -590,7 +520,7 @@ int do_rpmb(struct tool_options *opt)
 
 	switch (opt->idn) {
 	case AUTHENTICATION_KEY:
-		key_ptr = get_auth_key(opt->keypath);
+		key_ptr = get_auth_key(opt->keypath, key_buff);
 		if (key_ptr == NULL)
 			goto out;
 		rc = do_key(fd, key_ptr, opt->region, opt->sg_type);
@@ -606,7 +536,7 @@ int do_rpmb(struct tool_options *opt)
 			goto out;
 		}
 		if (opt->keypath[0] != 0) {
-			key_ptr = get_auth_key(opt->keypath);
+			key_ptr = get_auth_key(opt->keypath, key_buff);
 			if (key_ptr == NULL)
 				goto out;
 		}
@@ -617,7 +547,7 @@ int do_rpmb(struct tool_options *opt)
 			printf("Finish to read RPMB data\n");
 	break;
 	case WRITE_RPMB:
-		key_ptr = get_auth_key(opt->keypath);
+		key_ptr = get_auth_key(opt->keypath, key_buff);
 		if (key_ptr == NULL)
 			goto out;
 
@@ -639,7 +569,7 @@ int do_rpmb(struct tool_options *opt)
 	case READ_SEC_RPMB_CONF_BLOCK:
 		lun = opt->lun;
 		if (opt->keypath[0] != 0) {
-			key_ptr = get_auth_key(opt->keypath);
+			key_ptr = get_auth_key(opt->keypath, key_buff);
 			if (key_ptr == NULL)
 				goto out;
 		}
@@ -655,7 +585,7 @@ int do_rpmb(struct tool_options *opt)
 				opt->sg_type);
 	break;
 	case WRITE_SEC_RPMB_CONF_BLOCK:
-		key_ptr = get_auth_key(opt->keypath);
+		key_ptr = get_auth_key(opt->keypath, key_buff);
 		if (key_ptr == NULL)
 			goto out;
 

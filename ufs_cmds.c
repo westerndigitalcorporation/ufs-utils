@@ -1892,15 +1892,18 @@ int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 	int rc = OK;
 	__u8 res_code;
 	__u16 len = res_buf_len;
+	bool write =  false;
 
-	if (req_buf_len > 0)
+	if (req_buf_len > 0) {
 		len = req_buf_len;
+		write = true;
+	}
 
 	prepare_upiu(bsg_req, query_req_func, len, opcode, idn,
 		index, sel);
 
-	rc = send_bsg_scsi_trs(fd, bsg_req, bsg_rsp, req_buf_len, res_buf_len,
-			data_buf);
+	rc = send_bsg_scsi_trs(fd, bsg_req, bsg_rsp, sizeof(*bsg_req), sizeof(*bsg_rsp),
+			        len, data_buf, write);
 
 	if (rc) {
 		print_error("%s: query failed, status %d idn: %d, i: %d, s: %d",

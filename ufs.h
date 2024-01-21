@@ -166,6 +166,7 @@ enum ufs_cong_type {
 	FFU_TYPE,
 	VENDOR_BUFFER_TYPE,
 	RPMB_CMD_TYPE,
+	ARPMB_CMD_TYPE,
 	HMR_TYPE,
 	SPEC_VERSION,
 	BSG_LIST_TYPE
@@ -178,6 +179,8 @@ enum {
 	UPIU_TRANSACTION_DATA_OUT	= 0x02,
 	UPIU_TRANSACTION_TASK_REQ	= 0x04,
 	UPIU_TRANSACTION_QUERY_REQ	= 0x16,
+	UPIU_TRANSACTION_UIC_CMD	= 0x1F,
+	UPIU_TRANSACTION_ARPMB_CMD	= 0x20,
 };
 
 int write_file(const char *name, const void *buffer, int length);

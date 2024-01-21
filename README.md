@@ -38,7 +38,7 @@ Output:
         ufs-utils -v
                 Show the version.
 
-        ufs-utils <desc | attr | fl | err_hist | uic | ffu | vendor | rpmb | hmr> --help|-h
+        ufs-utils <desc | attr | fl | err_hist | uic | ffu | vendor | rpmb | hmr | arpmb> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to

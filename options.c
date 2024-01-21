@@ -101,7 +101,8 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		case 's':
 			if (options->config_type_inx == FFU_TYPE)
 				rc = verify_and_set_ffu_chunk_size(options);
-			else if (options->config_type_inx == RPMB_CMD_TYPE)
+			else if (options->config_type_inx == RPMB_CMD_TYPE ||
+				 options->config_type_inx == ARPMB_CMD_TYPE)
 				rc = verify_and_set_start_addr(options);
 			else
 				rc = verify_and_set_selector(options);
@@ -288,6 +289,7 @@ static int verify_and_set_idn(struct tool_options *options)
 		}
 		break;
 	case RPMB_CMD_TYPE:
+	case ARPMB_CMD_TYPE:
 		if (idn >= RPMB_CMD_MAX) {
 			print_error("Invalid rpmb cmd %d", idn);
 			goto out;
@@ -359,7 +361,7 @@ static int verify_and_set_start_addr(struct tool_options *options)
 {
 	int start_block = 0;
 
-	if (options->config_type_inx != RPMB_CMD_TYPE) {
+	if (options->config_type_inx != RPMB_CMD_TYPE && options->config_type_inx != ARPMB_CMD_TYPE) {
 		print_error("start block address using only for rpmb cmd");
 		goto out;
 	}
@@ -381,7 +383,7 @@ static int verify_and_set_num_block(struct tool_options *options)
 {
 	int num_block = 0;
 
-	if (options->config_type_inx != RPMB_CMD_TYPE) {
+	if (options->config_type_inx != RPMB_CMD_TYPE && options->config_type_inx != ARPMB_CMD_TYPE) {
 		print_error("num_block using only for rpmb cmd");
 		goto out;
 	}
@@ -401,7 +403,7 @@ out:
 
 static int verify_and_set_key_path(struct tool_options *options)
 {
-	if (options->config_type_inx != RPMB_CMD_TYPE) {
+	if (options->config_type_inx != RPMB_CMD_TYPE && options->config_type_inx != ARPMB_CMD_TYPE) {
 		print_error("key path using only for rpmb cmd");
 		goto out;
 	}
@@ -678,7 +680,7 @@ static int verify_arg_and_set_default(struct tool_options *options)
 	    (options->len == INVALID))
 		options->len = BLOCK_SIZE;
 
-	if (options->config_type_inx == RPMB_CMD_TYPE) {
+	if (options->config_type_inx == RPMB_CMD_TYPE || options->config_type_inx == ARPMB_CMD_TYPE) {
 		if (verify_rpmb_arg(options))
 			goto out;
 	}
@@ -793,7 +795,8 @@ static int verify_write(struct tool_options *options)
 	}
 	if (options->config_type_inx == FFU_TYPE ||
 	    options->config_type_inx == VENDOR_BUFFER_TYPE ||
-	    options->config_type_inx == RPMB_CMD_TYPE) {
+	    options->config_type_inx == RPMB_CMD_TYPE ||
+	    options->config_type_inx == ARPMB_CMD_TYPE) {
 		int len = strlen(optarg) + 1;
 
 		if (len >= PATH_MAX) {
