@@ -21,7 +21,6 @@
 #define ATTR_SET_ST     1       /* STATIC */
 #define MASK_UIC_COMMAND_RESULT 0xFF
 
-#define UPIU_TRANSACTION_UIC_CMD 0x1F
 /* uic commands are 4DW long, per UFSHCI V2.1 paragraph 5.6.1 */
 #define UIC_CMD_SIZE (sizeof(__u32) * 4)
 

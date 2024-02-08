@@ -28,7 +28,7 @@ typedef int (*command_function)(struct tool_options *opt);
 struct tool_command {
 	command_function func; /* function which implements the command */
 	char *conf_type; /* one of: descriptor/attributes/flags */
-	int conf_type_ind; /* confiruration type index */
+	enum ufs_cong_type conf_type_ind; /* confiruration type index */
 };
 
 static struct tool_command commands[] = {
@@ -43,6 +43,7 @@ static struct tool_command commands[] = {
 	{ do_ffu, "ffu", FFU_TYPE},
 	{ do_vendor, "vendor", VENDOR_BUFFER_TYPE},
 	{ do_rpmb, "rpmb", RPMB_CMD_TYPE},
+	{ do_arpmb, "arpmb", ARPMB_CMD_TYPE},
 	{ do_hmr, "hmr", HMR_TYPE},
 	{ do_get_ufs_spec_ver, "spec_version", SPEC_VERSION},
 	{ do_get_ufs_bsg_list, "list_bsg", BSG_LIST_TYPE},
@@ -67,7 +68,7 @@ static void help(char *np)
 	char help_str[256] = {0};
 
 	strcat(help_str, "<desc | attr | fl | err_hist | uic | ffu | vendor | "
-		"rpmb | hmr | spec_version | list_bsg>");
+		"rpmb | hmr | spec_version | list_bsg | arpmb>");
 	printf("\n Usage:\n");
 	printf("\n\t%s help|--help|-h\n\t\tShow the help.\n", np);
 	printf("\n\t%s -v\n\t\tShow the version.\n", np);
@@ -209,6 +210,9 @@ void print_command_help(char *prgname, int config_type)
 		break;
 	case RPMB_CMD_TYPE:
 		rpmb_help(prgname);
+		break;
+	case ARPMB_CMD_TYPE:
+		arpmb_help(prgname);
 		break;
 	case HMR_TYPE:
 		hmr_help(prgname);

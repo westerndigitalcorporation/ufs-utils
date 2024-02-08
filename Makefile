@@ -23,6 +23,7 @@ objects = \
 	hmac_sha2.o \
 	sha2.o \
 	ufs_rpmb.o \
+	ufs_arpmb.o \
 	ufs_hmr.o
 
 CHECKFLAGS = -Wall  -Wundef -Wno-missing-braces

@@ -286,7 +286,8 @@ static int ufshcd_dme_get_attr(int fd, __u32 attr_sel, __u8 peer)
 	uic_cmd->argument1 = attr_sel;
 	bsg_req.msgcode = UPIU_TRANSACTION_UIC_CMD;
 
-	rt = send_bsg_scsi_trs(fd, &bsg_req, &bsg_rsp, 0, 0, 0);
+	rt = send_bsg_scsi_trs(fd, &bsg_req, &bsg_rsp, sizeof(struct ufs_bsg_request),
+			       sizeof(struct ufs_bsg_reply), 0, 0, 0);
 	if (rt) {
 		print_error("%s: bsg request failed", __func__);
 		rt = ERROR;
@@ -340,7 +341,8 @@ static int ufshcd_dme_set_attr(int fd, __u32 attr_sel, __u8 attr_set,
 
 	bsg_req.msgcode = UPIU_TRANSACTION_UIC_CMD;
 
-	rt = send_bsg_scsi_trs(fd, &bsg_req, &bsg_rsp, 0, 0, 0);
+	rt = send_bsg_scsi_trs(fd, &bsg_req, &bsg_rsp, sizeof(struct ufs_bsg_request),
+			       sizeof(struct ufs_bsg_reply), 0, 0, 0);
 	if (rt) {
 		print_error("%s: bsg request failed", __func__);
 		rt = ERROR;

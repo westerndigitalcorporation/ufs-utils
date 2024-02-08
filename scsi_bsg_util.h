@@ -4,6 +4,8 @@
 #ifndef BSG_UTIL_H_
 #define BSG_UTIL_H_
 
+#include <stdbool.h>
+
 /* In case include/uapi/scsi/scsi_bsg_ufs.h is not included*/
 #ifndef SCSI_BSG_UFS_H
 /*
@@ -111,13 +113,44 @@ struct ufs_bsg_reply {
 	 * msg and status fields. The per-msgcode reply structure
 	 * will contain valid data.
 	 */
-	__u32 result;
+	int result;
 
 	/* If there was reply_payload, how much was received? */
 	__u32 reply_payload_rcv_len;
 
 	struct utp_upiu_req upiu_rsp;
 };
+
+struct advanced_rpmb_meta_info {
+	__u16 req_resp_type;
+	__u8 nonce[16];
+	__u32 write_counter;
+	__u16 addr;
+	__u16 block_count;
+	__u16 result;
+} __attribute__((__packed__));
+
+struct ufs_ehs {
+	 __u8 blenght;
+	 __u8 lehs_type;
+	 __u16 wehssub_type;
+	 union {
+	struct advanced_rpmb_meta_info meta;
+	char meta_bytes[28];
+	 };
+	 __u8 mac_key[32];
+} __attribute__((__packed__));
+
+struct ufs_rpmb_request {
+	struct ufs_bsg_request bsg_request;
+	struct ufs_ehs ehs_req;
+};
+
+struct ufs_rpmb_reply {
+	struct ufs_bsg_reply bsg_reply;
+	struct ufs_ehs ehs_rsp;
+};
+
 #endif /* SCSI_BSG_UFS_H.*/
 
 struct rpmb_frame {
@@ -134,10 +167,8 @@ struct rpmb_frame {
 
 #define BSG_REPLY_SZ (sizeof(struct ufs_bsg_reply))
 #define BSG_REQUEST_SZ (sizeof(struct ufs_bsg_request))
-
-int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
-		struct ufs_bsg_reply *reply_buff, __u32 request_len,
-		__u32 reply_len, __u8 *data_buf);
+int send_bsg_scsi_trs(int fd, void *request_buff, void *reply_buff, __u32 req_buf_len,
+		      __u32 reply_buf_len, __u32 data_buf_len, __u8 *data_buf, bool write);
 void prepare_upiu(struct ufs_bsg_request *bsg_req, __u8 query_req_func,
 		__u16 data_len, __u8 opcode, __u8 idn, __u8 index, __u8 sel);
 int read_buffer(int fd, __u8 *buf, uint8_t mode, __u8 buf_id,
@@ -148,5 +179,8 @@ int scsi_security_out(int fd, struct rpmb_frame *frame_in,
 		unsigned int cnt, __u8 region, __u8 sg_type);
 int scsi_security_in(int fd, struct rpmb_frame *frame, int cnt,
 		__u8 region, __u8 sg_type);
+int prepare_security_cdb(__u8 *cdb, unsigned int data_len, __u8 region, __u8 opcode);
+void prepare_command_upiu(struct utp_upiu_req *upiu_req, __u8 flags, __u8 lun, __u8 ehs_len, __u8 *cdb, __u8 cdb_len,
+			  __u32 exp_data_transfer_len);
 #endif /* BSG_UTIL_H_ */
 
