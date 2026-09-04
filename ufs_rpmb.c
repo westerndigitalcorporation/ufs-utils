@@ -38,7 +38,11 @@ static const char *const rpmb_purge_status[] = {
 #define RESP_CONF_BLOCK_WRITE  0x600
 #define RESP_CONF_BLOCK_READ   0x700
 
+#ifdef __FreeBSD__
+#define UFS_BSG_PATH "/dev/ufshci0"
+#else
 #define UFS_BSG_PATH "/dev/ufs-bsg0"
+#endif
 
 #define SECOND_BYTE_MASK 0xFF00
 

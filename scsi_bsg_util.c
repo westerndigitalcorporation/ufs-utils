@@ -17,6 +17,9 @@
 #include "ufs.h"
 #include "scsi_bsg_util.h"
 #include "ufs_rpmb.h"
+#ifdef __FreeBSD__
+#include "freebsd_transport.h"
+#endif
 
 #define UPIU_HEADER_DWORD(byte3, byte2, byte1, byte0)\
 			htobe32((byte3 << 24) | (byte2 << 16) |\
@@ -50,7 +53,10 @@ static int send_scsi_cmd(int fd, const __u8 *cdb, void *buf,
 		__u8 cmd_len, __u32 byte_cnt, int dir, __u8 sg_type);
 
 /* Get sense key string or NULL if not available */
-static const char *sense_key_string(__u8 key)
+#ifndef __FreeBSD__
+static
+#endif
+const char *sense_key_string(__u8 key)
 {
 	if (key <= 0xE)
 		return snstext[key];
@@ -65,6 +71,9 @@ static inline void put_unaligned_be24(__u32 val, void *p)
 	((__u8 *)p)[2] = val & 0xff;
 }
 
+#ifdef __FreeBSD__
+__attribute__((unused))
+#endif
 static int write_file_with_counter(const char *pattern, const void *buffer,
 			int length)
 {
@@ -248,6 +257,10 @@ void prepare_command_upiu(struct utp_upiu_req *upiu_req, __u8 flags, __u8 lun, _
 static int send_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
 		__u32 byte_cnt, int dir, __u8 sg_type)
 {
+#ifdef __FreeBSD__
+	(void)sg_type;
+	return freebsd_send_scsi_cmd(fd, cdb, buf, cmd_len, byte_cnt, dir);
+#else
 	int ret;
 	void *sg_struct;
 	struct sg_io_v4 io_hdr_v4 = { 0 };
@@ -320,6 +333,7 @@ static int send_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
 	}
 
 	return ret;
+#endif
 }
 
 /**
@@ -338,6 +352,10 @@ static int send_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
 int send_bsg_scsi_trs(int fd, void *request_buff, void *reply_buff, __u32 req_buf_len,
 			__u32 reply_buf_len, __u32 data_buf_len, __u8 *data_buf, bool write)
 {
+#ifdef __FreeBSD__
+	return freebsd_send_bsg_trs(fd, request_buff, reply_buff, req_buf_len,
+	    reply_buf_len, data_buf_len, data_buf, write);
+#else
 	int ret;
 	struct sg_io_v4 io_hdr_v4 = { 0 };
 
@@ -396,4 +414,5 @@ int send_bsg_scsi_trs(int fd, void *request_buff, void *reply_buff, __u32 req_bu
 	write_file_with_counter("bsg_rsp_%d.bin", reply_buff, BSG_REPLY_SZ);
 
 	return ret;
+#endif
 }

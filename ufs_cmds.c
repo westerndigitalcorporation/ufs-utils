@@ -1512,7 +1512,11 @@ static int find_bsg_device(char* path, int *counter) {
 		return ERROR;
 	}
 	while ((files = readdir(dir)) != NULL) {
+#ifdef __FreeBSD__
+		if (strstr(files->d_name, "ufshci") != 0) {
+#else
 		if (strstr(files->d_name, "ufs-bsg") != 0) {
+#endif
 			printf("%s/%s\n", path, files->d_name);
 			(*counter)++;
 		}
