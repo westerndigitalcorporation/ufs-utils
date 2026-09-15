@@ -1,7 +1,13 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2019 Western Digital Corporation or its affiliates
 
+UNAME := $(shell uname -s)
+
+ifeq ($(UNAME),FreeBSD)
+export CC := cc
+else
 export CC := $(CROSS_COMPILE)gcc
+endif
 AM_CFLAGS = -D_FILE_OFFSET_BITS=64 -D_FORTIFY_SOURCE=2
 CFLAGS ?= -g -O2 -static -D_GNU_SOURCE
 
@@ -26,6 +32,16 @@ objects = \
 	ufs_arpmb.o \
 	ufs_hmr.o \
 	ufs_emon.o \
+
+ifeq ($(UNAME),FreeBSD)
+objects += freebsd_transport.o
+# compat carries the Linux headers ufs-utils includes.
+INC_DIR += -I$(CURDIR)/compat
+# options.h defines PATH_MAX itself unless a Linux guard macro says the
+# system already has one. Pull in the real limits.h and set that guard,
+# so the platform value is used instead of a second definition.
+AM_CFLAGS += -include limits.h -D_UAPI_LINUX_LIMITS_H
+endif
 
 CHECKFLAGS = -Wall  -Wundef -Wno-missing-braces -fcommon
 
